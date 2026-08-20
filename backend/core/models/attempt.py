@@ -7,17 +7,16 @@ from sqlalchemy import DateTime, ForeignKey, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import Base
+from .mixins import UserRelationMixin
 
 if TYPE_CHECKING:
     from .attempt_answer import AttemptAnswer
     from .test import Test
-    from .user import User
 
 
-class Attempt(Base):
-    user_id: Mapped[int] = mapped_column(
-        ForeignKey("users.id"), index=True
-    )
+class Attempt(UserRelationMixin, Base):
+    _user_back_populates = "attempts"
+
     test_id: Mapped[int] = mapped_column(
         ForeignKey("tests.id"), index=True
     )
@@ -26,7 +25,6 @@ class Attempt(Base):
     )
     finished_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
-    user: Mapped[User] = relationship(back_populates="attempts")
     test: Mapped[Test] = relationship(back_populates="attempts")
     answers: Mapped[list[AttemptAnswer]] = relationship(
         back_populates="attempt", cascade="all, delete-orphan"
