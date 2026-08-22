@@ -17,12 +17,8 @@ if TYPE_CHECKING:
 class Attempt(UserRelationMixin, Base):
     _user_back_populates = "attempts"
 
-    test_id: Mapped[int] = mapped_column(
-        ForeignKey("tests.id"), index=True
-    )
-    started_at: Mapped[datetime] = mapped_column(
-        DateTime, server_default=func.now()
-    )
+    test_id: Mapped[int] = mapped_column(ForeignKey("tests.id"), index=True)
+    started_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     finished_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     test: Mapped[Test] = relationship(back_populates="attempts")
