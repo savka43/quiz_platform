@@ -6,7 +6,7 @@ class DataBaseHelper:
     def __init__(self, url: str):
         self.engine = create_async_engine(url=url, echo=True)
         self.session_factory = async_sessionmaker(
-            bind=self.engine, autoflush=False, expire_on_commit=False, autocmmit=False
+            bind=self.engine, autoflush=False, expire_on_commit=False, autocommit=False
         )
 
     async def session_dependency(self):
