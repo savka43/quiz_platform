@@ -25,12 +25,12 @@ async def create_test(
     return await crud.create_test(session=session, test_in=test_in)
 
 
-@router.get("/{test_id}/", response_model=TestRead)
+@router.get("/{test_id}", response_model=TestRead)
 async def get_test_by_id(test: TestRead = Depends(test_by_id)):
     return test
 
 
-@router.patch("/{test_id}/", response_model=TestRead)
+@router.patch("/{test_id}", response_model=TestRead)
 async def update_test(
     test_update: TestUpdatePartial,
     session: AsyncSession = Depends(db_helper.session_dependency),
@@ -44,7 +44,7 @@ async def update_test(
     )
 
 
-@router.delete("/{test_id}/")
+@router.delete("/{test_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_test(
     test: TestRead = Depends(test_by_id),
     session: AsyncSession = Depends(db_helper.session_dependency),

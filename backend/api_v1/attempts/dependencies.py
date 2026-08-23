@@ -4,20 +4,20 @@ from fastapi import Depends, HTTPException, Path, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core import db_helper
-from core.models import Test
+from core.models import Attempt
 
 from . import crud
 
 
-async def test_by_id(
-    test_id: Annotated[int, Path(gt=0)],
+async def attempt_by_id(
+    attempt_id: Annotated[int, Path(gt=0)],
     session: AsyncSession = Depends(db_helper.session_dependency),
-) -> Test:
-    test = await crud.get_test_by_id(session=session, id=test_id)
-    if test is not None:
-        return test
+) -> Attempt:
+    attempt = await crud.get_attempt_by_id(session=session, id=attempt_id)
+    if attempt is not None:
+        return attempt
 
     raise HTTPException(
         status_code=status.HTTP_404_NOT_FOUND,
-        detail=f"Test {test_id} not found!",
+        detail=f"Attempt {attempt_id} not found!",
     )

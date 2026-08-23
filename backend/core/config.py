@@ -2,7 +2,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    api_prefix: str = "/api/v1/"
+    api_prefix: str = "/api/v1"
 
     postgres_user: str
     postgres_password: str

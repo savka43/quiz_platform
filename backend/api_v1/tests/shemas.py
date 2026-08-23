@@ -8,7 +8,7 @@ class TestBase(BaseModel):
 
 
 class TestCreate(TestBase):
-    pass
+    user_id: int
 
 
 class TestUpdate(TestBase):

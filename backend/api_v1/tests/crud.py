@@ -1,11 +1,9 @@
 from sqlalchemy import select
-from sqlalchemy.engine import Result
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import session
 
 from core.models import Test
 
-from .shemas import TestCreate, TestRead, TestUpdate, TestUpdatePartial
+from .shemas import TestCreate, TestUpdate, TestUpdatePartial
 
 
 async def get_tests(session: AsyncSession) -> list[Test]:
@@ -32,7 +30,7 @@ async def update_test(
     test_update: TestUpdate | TestUpdatePartial,
     partial: bool = False,
 ) -> Test:
-    for name, value in test_update.model_dump():
+    for name, value in test_update.model_dump(exclude_unset=partial).items():
         setattr(test, name, value)
     await session.commit()
     return test
