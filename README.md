@@ -1,1 +1,1 @@
-![Quiz Preview](./quiz_picture)
+![Quiz Preview](./quiz_picture.png)
