@@ -1,3 +1,5 @@
+import re
+
 from sqlalchemy.orm import DeclarativeBase, Mapped, declared_attr, mapped_column
 
 
@@ -6,6 +8,7 @@ class Base(DeclarativeBase):
 
     @declared_attr.directive
     def __tablename__(cls) -> str:
-        return f"{cls.__name__.lower()}s"
+        name = re.sub(r"(?<!^)(?=[A-Z])", "_", cls.__name__).lower()
+        return name + "s"
 
     id: Mapped[int] = mapped_column(primary_key=True)

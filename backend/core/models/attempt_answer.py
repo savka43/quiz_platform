@@ -13,16 +13,12 @@ if TYPE_CHECKING:
 
 
 class AttemptAnswer(Base):
-    __table_args__ = (
-        UniqueConstraint("attempt_id", "question_id"),
-    )
+    __table_args__ = (UniqueConstraint("attempt_id", "question_id"),)
 
     attempt_id: Mapped[int] = mapped_column(
         ForeignKey("attempts.id", ondelete="CASCADE"), index=True
     )
-    question_id: Mapped[int] = mapped_column(
-        ForeignKey("questions.id"), index=True
-    )
+    question_id: Mapped[int] = mapped_column(ForeignKey("questions.id"), index=True)
     user_answer: Mapped[str] = mapped_column(Text)
     is_correct: Mapped[bool] = mapped_column(Boolean)
 
