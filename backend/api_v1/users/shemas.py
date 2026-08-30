@@ -5,6 +5,7 @@ from pydantic import BaseModel, ConfigDict
 
 class UserBase(BaseModel):
     email: str
+    active: bool
 
 
 class UserCreate(UserBase):

@@ -16,9 +16,8 @@ if TYPE_CHECKING:
 class User(Base):
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
     hashed_password: Mapped[str] = mapped_column(String(255))
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime, server_default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     tests: Mapped[list[Test]] = relationship(back_populates="user")
     attempts: Mapped[list[Attempt]] = relationship(back_populates="user")
+    active: bool = True
