@@ -20,4 +20,6 @@ class User(Base):
 
     tests: Mapped[list[Test]] = relationship(back_populates="user")
     attempts: Mapped[list[Attempt]] = relationship(back_populates="user")
-    active: bool = True
+    active: Mapped[bool] = mapped_column(
+        default=True, server_default="true", nullable=False
+    )
