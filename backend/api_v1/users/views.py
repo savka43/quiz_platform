@@ -1,52 +1,22 @@
-from fastapi import APIRouter, Depends, status
-from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import APIRouter, Depends, HTTPException, Path
 
-from core import db_helper
-
-from . import crud
-from .dependencies import user_by_id
-from .shemas import UserCreate, UserRead, UserUpdatePartial
+from api_v1.auth.dependencies import get_current_user
+from core.models import User
+from .shemas import UserRead
 
 router = APIRouter(tags=["Users"])
 
 
-@router.get("/", response_model=list[UserRead])
-async def get_users(
-    session: AsyncSession = Depends(db_helper.session_dependency),
-):
-    return await crud.get_users(session=session)
-
-
-@router.post("/", response_model=UserRead, status_code=status.HTTP_201_CREATED)
-async def create_user(
-    user_in: UserCreate,
-    session: AsyncSession = Depends(db_helper.session_dependency),
-):
-    return await crud.create_user(session=session, user_in=user_in)
-
-
-@router.get("/{user_id}", response_model=UserRead)
-async def get_user_by_id(user: UserRead = Depends(user_by_id)):
+@router.get("/me", response_model=UserRead)
+async def get_me(user: User = Depends(get_current_user)):
     return user
 
 
-@router.patch("/{user_id}", response_model=UserRead)
-async def update_user(
-    user_update: UserUpdatePartial,
-    session: AsyncSession = Depends(db_helper.session_dependency),
-    user: UserRead = Depends(user_by_id),
+@router.get("/{user_id}", response_model=UserRead)
+async def get_user_by_id(
+    user_id: int = Path(gt=0),
+    user: User = Depends(get_current_user),
 ):
-    return await crud.update_user(
-        session=session,
-        user=user,
-        user_update=user_update,
-        partial=True,
-    )
-
-
-@router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_user(
-    user: UserRead = Depends(user_by_id),
-    session: AsyncSession = Depends(db_helper.session_dependency),
-):
-    await crud.delete_user(session=session, user=user)
+    if user_id != user.id:
+        raise HTTPException(403, "Access forbidden")
+    return user

@@ -2,7 +2,7 @@ from fastapi import APIRouter
 
 from .attempt_answers.views import router as attempt_answers_router
 from .attempts.views import router as attempts_router
-from .auth.views import router as auth_router
+from .auth.jwt_auth import router as auth_router
 from .questions.views import router as questions_router
 from .tests.views import router as tests_router
 from .users.views import router as users_router
