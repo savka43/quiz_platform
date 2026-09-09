@@ -28,11 +28,11 @@ async def registered_login(client, registration):
     return response.json()
 
 
-async def test_registration_persists_argon2_and_login(client, database, registration):
+async def test_registration_persists_bcrypt_and_login(client, database, registration):
     tokens = await registered_login(client, registration)
     user = await database.scalar(select(User).where(User.email == registration["email"]))
     assert user.active
-    assert user.hashed_password.startswith("$argon2id$")
+    assert user.hashed_password.startswith("$2b$")
     assert validate_password(registration["password"], user.hashed_password)
     assert tokens["token_type"] == "bearer"
     for kind in ("access", "refresh"):
@@ -60,7 +60,7 @@ async def test_duplicate_email_case_insensitive(client, registration):
 
 
 @pytest.mark.parametrize("change", [
-    {"email": "not-email"}, {"password": "short"}, {"password": "x" * 129},
+    {"email": "not-email"}, {"password": "short"}, {"password": "x" * 73}, {"password": "я" * 37},
     {"hashed_password": "fake"}, {"active": False}, {"user_id": 99},
 ])
 async def test_registration_validation(client, registration, change):
@@ -189,7 +189,7 @@ async def test_legacy_and_invalid_hashes(client, database, registration, legacy)
     assert response.status_code == (200 if legacy else 401)
     if legacy:
         await database.refresh(user)
-        assert user.hashed_password.startswith("$argon2id$")
+        assert user.hashed_password == hashed
 
 
 async def test_swagger_oauth_and_demo_removed(client):
@@ -248,3 +248,13 @@ async def test_concurrent_refresh_and_failed_rotation_rollback(registration, mon
             await session.execute(delete(User).where(User.email == registration["email"]))
             await session.commit()
         await engine.dispose()
+
+
+@pytest.mark.parametrize("password", ["a" * 72, "я" * 36])
+async def test_bcrypt_password_byte_boundary(client, registration, password):
+    registration["password"] = password
+    await registered_login(client, registration)
+    response = await client.post(f"{PREFIX}/auth/login", data={
+        "username": registration["email"], "password": password + "a",
+    })
+    assert response.status_code == 401
