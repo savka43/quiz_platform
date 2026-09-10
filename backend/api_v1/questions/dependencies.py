@@ -1,23 +1,17 @@
 from typing import Annotated
 
-from fastapi import Depends, HTTPException, Path, status
+from fastapi import Depends, Path
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from api_v1.auth.dependencies import get_current_user
+from api_v1.permissions import owned_question
 from core import db_helper
-from core.models import Question
-
-from . import crud
+from core.models import Question, User
 
 
 async def question_by_id(
     question_id: Annotated[int, Path(gt=0)],
     session: AsyncSession = Depends(db_helper.session_dependency),
+    current_user: User = Depends(get_current_user),
 ) -> Question:
-    question = await crud.get_question_by_id(session=session, id=question_id)
-    if question is not None:
-        return question
-
-    raise HTTPException(
-        status_code=status.HTTP_404_NOT_FOUND,
-        detail=f"Question {question_id} not found!",
-    )
+    return await owned_question(session, question_id, current_user)

@@ -8,14 +8,16 @@ class TestBase(BaseModel):
 
 
 class TestCreate(TestBase):
-    user_id: int
+    model_config = ConfigDict(extra="forbid")
 
 
 class TestUpdate(TestBase):
+    model_config = ConfigDict(extra="forbid")
     pass
 
 
 class TestUpdatePartial(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     title: str | None = None
 
 

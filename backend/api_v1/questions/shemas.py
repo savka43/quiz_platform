@@ -8,14 +8,17 @@ class QuestionBase(BaseModel):
 
 
 class QuestionCreate(QuestionBase):
+    model_config = ConfigDict(extra="forbid")
     pass
 
 
 class QuestionUpdate(QuestionBase):
+    model_config = ConfigDict(extra="forbid")
     pass
 
 
 class QuestionUpdatePartial(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     test_id: int | None = None
     text: str | None = None
     correct_answer: str | None = None

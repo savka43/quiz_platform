@@ -9,14 +9,17 @@ class AttemptAnswerBase(BaseModel):
 
 
 class AttemptAnswerCreate(AttemptAnswerBase):
+    model_config = ConfigDict(extra="forbid")
     pass
 
 
 class AttemptAnswerUpdate(AttemptAnswerBase):
+    model_config = ConfigDict(extra="forbid")
     pass
 
 
 class AttemptAnswerUpdatePartial(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     attempt_id: int | None = None
     question_id: int | None = None
     user_answer: str | None = None

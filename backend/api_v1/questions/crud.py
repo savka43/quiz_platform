@@ -1,13 +1,13 @@
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.models import Question
+from core.models import Question, Test
 
 from .shemas import QuestionCreate, QuestionUpdate, QuestionUpdatePartial
 
 
-async def get_questions(session: AsyncSession) -> list[Question]:
-    stmt = select(Question).order_by(Question.id)
+async def get_questions(session: AsyncSession, user_id: int) -> list[Question]:
+    stmt = select(Question).join(Test, Question.test_id == Test.id).where(Test.user_id == user_id).order_by(Question.id)
     result = await session.execute(stmt)
     questions = result.scalars().all()
     return list(questions)

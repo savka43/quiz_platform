@@ -8,16 +8,18 @@ class AttemptBase(BaseModel):
     test_id: int
 
 
-class AttemptCreate(AttemptBase):
-    pass
+class AttemptCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    test_id: int
 
 
-class AttemptUpdate(AttemptBase):
+class AttemptUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     finished_at: datetime | None = None
 
 
 class AttemptUpdatePartial(BaseModel):
-    user_id: int | None = None
+    model_config = ConfigDict(extra="forbid")
     test_id: int | None = None
     finished_at: datetime | None = None
 

@@ -1,7 +1,7 @@
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.models import AttemptAnswer
+from core.models import AttemptAnswer, Attempt
 
 from .shemas import (
     AttemptAnswerCreate,
@@ -10,8 +10,8 @@ from .shemas import (
 )
 
 
-async def get_attempt_answers(session: AsyncSession) -> list[AttemptAnswer]:
-    stmt = select(AttemptAnswer).order_by(AttemptAnswer.id)
+async def get_attempt_answers(session: AsyncSession, user_id: int) -> list[AttemptAnswer]:
+    stmt = select(AttemptAnswer).join(Attempt, AttemptAnswer.attempt_id == Attempt.id).where(Attempt.user_id == user_id).order_by(AttemptAnswer.id)
     result = await session.execute(stmt)
     attempt_answers = result.scalars().all()
     return list(attempt_answers)
