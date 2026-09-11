@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, status, HTTPException
+from fastapi import APIRouter, Depends, Query, status, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api_v1.auth.dependencies import get_current_user
@@ -16,10 +16,12 @@ router = APIRouter(dependencies=[Depends(get_current_user)], tags=["Attempts"])
 
 @router.get("/", response_model=list[AttemptRead])
 async def get_attempts(
+    limit: int = Query(100, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(db_helper.session_dependency),
 ):
-    return await crud.get_attempts(session=session, user_id=current_user.id)
+    return await crud.get_attempts(session=session, user_id=current_user.id, limit=limit, offset=offset)
 
 
 @router.post("/", response_model=AttemptRead, status_code=status.HTTP_201_CREATED)

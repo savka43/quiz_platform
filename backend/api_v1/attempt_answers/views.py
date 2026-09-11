@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from core import db_helper
@@ -13,10 +13,11 @@ router = APIRouter(tags=["Attempt answers"], dependencies=[Depends(get_current_u
 
 
 @router.get("/")
-async def get_attempt_answers(user: User = Depends(get_current_user),
+async def get_attempt_answers(limit: int = Query(100, ge=1, le=1000), offset: int = Query(0, ge=0),
+                              user: User = Depends(get_current_user),
                               session: AsyncSession = Depends(db_helper.session_dependency)):
     rows = (await session.execute(select(AttemptAnswer, Attempt.finished_at).join(Attempt)
-            .where(Attempt.user_id == user.id).order_by(AttemptAnswer.id))).all()
+            .where(Attempt.user_id == user.id).order_by(AttemptAnswer.id).limit(limit).offset(offset))).all()
     return [service.public_answer(answer, finished is not None) for answer, finished in rows]
 
 

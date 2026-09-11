@@ -1,6 +1,7 @@
 """Ownership checks shared by resource dependencies and creation routes."""
 from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 
 from core.models import Attempt, AttemptAnswer, Question, Test, User
 
@@ -52,3 +53,12 @@ async def answer_parent(session: AsyncSession, attempt_id: int, question_id: int
     question = await owned_question(session, question_id, user)
     if question.test_id != attempt.test_id:
         raise HTTPException(422, "Question does not belong to the attempt's test")
+
+
+async def lock_test(session: AsyncSession, test_id: int) -> Test:
+    """Serialize editor/CRUD writes and snapshot creation on the same parent row."""
+    test = await session.scalar(select(Test).where(Test.id == test_id)
+        .with_for_update().execution_options(populate_existing=True))
+    if test is None:
+        raise HTTPException(404, "Test not found")
+    return test

@@ -1,4 +1,6 @@
 from datetime import datetime, timedelta, timezone
+import logging
+logger = logging.getLogger(__name__)
 
 from fastapi import HTTPException
 from sqlalchemy import func, select, update
@@ -49,8 +51,10 @@ async def authenticate(email: str, password: str, session: AsyncSession) -> User
         user.hashed_password if user else DUMMY_PASSWORD_HASH,
     )
     if user is None or not valid:
+        logger.info("Login rejected: invalid credentials")
         raise unauthorized()
     if not user.active:
+        logger.info("Login rejected: inactive user id=%s", user.id)
         raise HTTPException(403, "User inactive")
     return user
 

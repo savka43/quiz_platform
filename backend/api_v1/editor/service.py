@@ -3,13 +3,13 @@ from sqlalchemy import select, delete, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from core.models import Test, Question, AnswerOption, User
-from api_v1.permissions import owned_test
+from api_v1.permissions import owned_test, lock_test
 from .schemas import TestDocument, QuestionInput
 
 
 async def test_questions(session: AsyncSession, test_id: int) -> list[Question]:
     result = await session.scalars(select(Question).where(Question.test_id == test_id)
-        .options(selectinload(Question.options)).order_by(Question.position, Question.id))
+        .options(selectinload(Question.options)).execution_options(populate_existing=True).order_by(Question.position, Question.id))
     return list(result)
 
 
@@ -49,7 +49,7 @@ async def save_document(session: AsyncSession, user: User, data: TestDocument,
         existing = {}
     else:
         test = await owned_test(session, test_id, user)
-        await session.execute(select(Test.id).where(Test.id == test_id).with_for_update())
+        test = await lock_test(session, test_id)
         existing = {q.id: q for q in await test_questions(session, test_id)}
         if any(q.id is not None and q.id not in existing for q in data.questions):
             raise HTTPException(403, 'Question does not belong to this test')

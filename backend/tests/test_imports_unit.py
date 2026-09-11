@@ -154,3 +154,19 @@ def test_snapshot_output_does_not_expose_answers():
     result = public_snapshot(q)
     assert 'secret' not in str(result)
     assert 'is_correct' not in str(result)
+
+
+def test_connection_url_escapes_password():
+    from core.config import Settings
+    from sqlalchemy.engine import make_url
+    config=Settings(postgres_user='user',postgres_password='p@ss:/%word',postgres_db='db',_env_file=None)
+    assert make_url(config.database_url).password == 'p@ss:/%word'
+
+
+def test_matching_requires_listed_choices():
+    from fastapi import HTTPException
+    payload={'question_type':'matching','blanks':[{'prompt':'Q','correct_answer':'A','choices':['A','B']}]}
+    assert evaluate(payload,AnswerInput(question_id=1,blank_answers=['A']))
+    assert not evaluate(payload,AnswerInput(question_id=1,blank_answers=['B']))
+    with pytest.raises(HTTPException):
+        evaluate(payload,AnswerInput(question_id=1,blank_answers=['missing']))

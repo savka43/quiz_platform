@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from core.models import Test, Question, Attempt, AttemptQuestion, AttemptAnswer, User
 from api_v1.editor.service import test_questions, question_document
 from api_v1.editor.schemas import QuestionInput
-from api_v1.permissions import owned_test, owned_attempt
+from api_v1.permissions import owned_test, owned_attempt, lock_test
 from .schemas import AnswerInput
 
 
@@ -34,6 +34,9 @@ def evaluate(payload: dict, answer: AnswerInput) -> bool:
         if answer.blank_answers or not answer.user_answer.strip():
             raise HTTPException(422, 'Provide user_answer')
         return normalized(answer.user_answer) == normalized(payload['correct_answer'])
+    if kind == 'matching' and len(answer.blank_answers) == len(payload['blanks']):
+        if any(a not in b.get('choices', []) for a, b in zip(answer.blank_answers, payload['blanks'])):
+            raise HTTPException(422, 'Choose a listed value for every matching row')
     if answer.user_answer or len(answer.blank_answers) != len(payload['blanks']):
         raise HTTPException(422, 'Provide one answer for each blank')
     return all(normalized(a) == normalized(b['correct_answer'])
@@ -78,7 +81,7 @@ async def create_snapshot_attempt(session: AsyncSession, user: User, questions: 
 
 async def start_test(session: AsyncSession, user: User, test_id: int) -> Attempt:
     test = await owned_test(session, test_id, user)
-    await session.execute(select(Test.id).where(Test.id == test_id).with_for_update())
+    test = await lock_test(session, test_id)
     return await create_snapshot_attempt(session, user, await test_questions(session, test_id), test)
 
 

@@ -6,8 +6,8 @@ from core.models import Attempt
 from .shemas import AttemptCreate, AttemptUpdate, AttemptUpdatePartial
 
 
-async def get_attempts(session: AsyncSession, user_id: int) -> list[Attempt]:
-    stmt = select(Attempt).where(Attempt.user_id == user_id).order_by(Attempt.id)
+async def get_attempts(session: AsyncSession, user_id: int, limit: int = 100, offset: int = 0) -> list[Attempt]:
+    stmt = select(Attempt).where(Attempt.user_id == user_id).order_by(Attempt.id).limit(limit).offset(offset)
     result = await session.execute(stmt)
     attempts = result.scalars().all()
     return list(attempts)
@@ -41,5 +41,9 @@ async def update_attempt(
 
 
 async def delete_attempt(session: AsyncSession, attempt: Attempt) -> None:
+    # Serialize deletion with answer submission and finish on the attempt row.
+    attempt = await session.scalar(select(Attempt).where(Attempt.id == attempt.id).with_for_update())
+    if attempt is None:
+        return
     await session.delete(attempt)
     await session.commit()

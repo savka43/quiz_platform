@@ -2,6 +2,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from sqlalchemy import URL
 
 BASE_DIR = Path(__file__).parent.parent
 
@@ -18,6 +19,7 @@ class Settings(BaseSettings):
     auth_jwt: AuthJWT = AuthJWT()
 
     api_prefix: str = "/api/v1"
+    cors_origins: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
 
     postgres_user: str
     postgres_password: str
@@ -27,14 +29,12 @@ class Settings(BaseSettings):
 
     @property
     def database_url(self) -> str:
-        return (
-            f"postgresql+asyncpg://"
-            f"{self.postgres_user}:"
-            f"{self.postgres_password}@"
-            f"{self.postgres_host}:"
-            f"{self.postgres_port}/"
-            f"{self.postgres_db}"
-        )
+        return URL.create(
+            "postgresql+asyncpg", username=self.postgres_user,
+            password=self.postgres_password, host=self.postgres_host,
+            port=self.postgres_port, database=self.postgres_db,
+        ).render_as_string(hide_password=False)
+
 
     model_config = SettingsConfigDict(env_file=BASE_DIR / ".env", env_nested_delimiter="__")
 

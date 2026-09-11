@@ -127,3 +127,101 @@ async def test_editor_rejects_foreign_question_and_rolls_back(client,database,he
     assert r.status_code==403
     actual=(await client.get(f'{P}/tests/{test["id"]}/editor',headers=headers)).json()
     assert actual==test
+
+
+async def test_import_is_atomic_when_database_fails(client,database,headers,document,monkeypatch):
+    from api_v1.editor import service
+    from fastapi import HTTPException
+    from core.models import Test as Quiz
+    before = await database.scalar(select(func.count()).select_from(Quiz))
+    original = service.apply_question
+    counter = 0
+    async def fail_second(*args, **kwargs):
+        nonlocal counter
+        counter += 1
+        if counter == 2:
+            raise HTTPException(503, 'Injected storage failure')
+        return await original(*args, **kwargs)
+    monkeypatch.setattr(service, 'apply_question', fail_second)
+    response = await client.post(P+'/import/html/confirm',headers=headers,json=document)
+    assert response.status_code == 503
+    # The production dependency rolls back on close. Roll back this fixture's
+    # savepoint to emulate that lifecycle before inspecting persisted rows.
+    await database.rollback()
+    assert await database.scalar(select(func.count()).select_from(Quiz)) == before
+
+
+async def test_new_routes_are_private(client,database,headers,document):
+    test = await create(client,headers,document)
+    attempt=(await client.post(f'{P}/tests/{test["id"]}/attempts',headers=headers)).json()
+    other = User(email=f'other-{uuid4().hex}@example.com',hashed_password='unused',active=True)
+    database.add(other)
+    await database.commit()
+    foreign = {'Authorization':'Bearer '+encode_jwt({'sub':str(other.id),'type':'access'})}
+    qid = test['questions'][0]['id']
+    aid = attempt['id']
+    for method, path, data in [
+        ('get',f'/tests/{test["id"]}/editor',None),
+        ('put',f'/tests/{test["id"]}/editor',document),
+        ('post',f'/questions/{qid}/favorite',None),
+        ('delete',f'/questions/{qid}/favorite',None),
+        ('post',f'/tests/{test["id"]}/attempts',None),
+        ('get',f'/attempts/{aid}/questions',None),
+        ('post',f'/attempts/{aid}/answers',{'question_id':qid,'user_answer':'A'}),
+        ('post',f'/attempts/{aid}/finish',None),
+        ('get',f'/attempts/{aid}/result',None),
+        ('get',f'/attempts/{aid}/mistakes',None),
+    ]:
+        response = await client.request(method,P+path,headers=foreign,**({'json':data} if data is not None else {}))
+        assert response.status_code == 403, (path,response.text)
+    for path in ['/users/me/favorites','/users/me/attempts']:
+        assert (await client.get(P+path,headers=foreign)).json() == []
+
+
+async def test_parallel_answers_finish_and_edit_snapshot(document):
+    import asyncio
+    import os
+    from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
+    from sqlalchemy.pool import NullPool
+    from sqlalchemy import delete
+    from httpx import ASGITransport, AsyncClient
+    from core import settings, db_helper
+    from core.models import Test as Quiz, Attempt, AttemptAnswer
+    from main import app
+    engine = create_async_engine(os.environ.get('TEST_DATABASE_URL',settings.database_url),poolclass=NullPool)
+    factory = async_sessionmaker(engine,expire_on_commit=False)
+    uid = None
+    async def independent_session():
+        async with factory() as session:
+            yield session
+    app.dependency_overrides[db_helper.session_dependency] = independent_session
+    try:
+        async with factory() as session:
+            user=User(email=f'parallel-{uuid4().hex}@example.com',hashed_password='unused',active=True)
+            session.add(user)
+            await session.commit()
+            uid=user.id
+        auth={'Authorization':'Bearer '+encode_jwt({'sub':str(uid),'type':'access'})}
+        async with AsyncClient(transport=ASGITransport(app=app),base_url='http://test') as client:
+            doc={'title':'Race','questions':[{'text':'Q','correct_answer':'A'}]}
+            test=await create(client,auth,doc)
+            attempt=(await client.post(f'{P}/tests/{test["id"]}/attempts',headers=auth)).json()
+            aid=attempt['id']
+            q=(await client.get(f'{P}/attempts/{aid}/questions',headers=auth)).json()[0]
+            body={'attempt_question_id':q['attempt_question_id'],'user_answer':'A'}
+            answers=await asyncio.gather(*[client.post(f'{P}/attempts/{aid}/answers',headers=auth,json=body) for _ in range(2)])
+            assert [r.status_code for r in answers] == [200,200]
+            assert answers[0].json()['id']==answers[1].json()['id']
+            finishes=await asyncio.gather(*[client.post(f'{P}/attempts/{aid}/finish',headers=auth) for _ in range(2)])
+            assert sorted(r.status_code for r in finishes)==[200,409]
+            assert (await client.get(f'{P}/attempts/{aid}/result',headers=auth)).json()['score']==100
+            assert (await client.patch(f'{P}/attempt-answers/{answers[0].json()["id"]}',headers=auth,json={'user_answer':'B'})).status_code==409
+    finally:
+        app.dependency_overrides.clear()
+        async with factory() as session:
+            if uid is not None:
+                await session.execute(delete(Attempt).where(Attempt.user_id==uid))
+                await session.execute(delete(Quiz).where(Quiz.user_id==uid))
+                await session.execute(delete(User).where(User.id==uid))
+                await session.commit()
+        await engine.dispose()

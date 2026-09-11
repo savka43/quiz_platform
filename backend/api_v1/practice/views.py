@@ -7,7 +7,7 @@ from sqlalchemy.orm import selectinload
 from core import db_helper
 from core.models import User, Favorite, Question, Attempt, AttemptAnswer, Test
 from api_v1.auth.dependencies import get_current_user
-from api_v1.permissions import owned_question, owned_attempt
+from api_v1.permissions import owned_question, owned_attempt, lock_test
 from api_v1.editor.service import question_document
 from api_v1.attempts.shemas import AttemptRead
 from .schemas import AnswerInput, PracticeStart
@@ -47,6 +47,12 @@ async def favorites(user: User = Depends(get_current_user),
 @router.post('/favorites/attempts', response_model=AttemptRead, status_code=201)
 async def practice_favorites(data: PracticeStart, user: User = Depends(get_current_user),
                              session: AsyncSession = Depends(db_helper.session_dependency)):
+    # Consistent lock order avoids deadlocks when favorites span several tests.
+    test_ids = list(await session.scalars(select(Question.test_id).join(Favorite, Favorite.question_id == Question.id)
+        .join(Test, Test.id == Question.test_id).where(Favorite.user_id == user.id, Test.user_id == user.id,
+        Question.id.in_(data.question_ids)).distinct().order_by(Question.test_id)))
+    for test_id in test_ids:
+        await lock_test(session, test_id)
     rows = list(await session.scalars(select(Question).join(Favorite, Favorite.question_id == Question.id)
         .join(Test, Test.id == Question.test_id).where(Favorite.user_id == user.id, Test.user_id == user.id,
         Question.id.in_(data.question_ids)).options(selectinload(Question.options))))
