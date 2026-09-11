@@ -5,7 +5,7 @@ from pydantic import BaseModel, ConfigDict
 
 class AttemptBase(BaseModel):
     user_id: int
-    test_id: int
+    test_id: int | None
 
 
 class AttemptCreate(BaseModel):
@@ -30,3 +30,5 @@ class AttemptRead(AttemptBase):
     id: int
     started_at: datetime
     finished_at: datetime | None
+    score: float | None = None
+    test_title: str = ""

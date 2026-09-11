@@ -7,7 +7,14 @@ from .questions.views import router as questions_router
 from .tests.views import router as tests_router
 from .users.views import router as users_router
 
+from .editor.views import router as editor_router
+from .imports.views import router as imports_router
+from .practice.views import router as practice_router
+
 router = APIRouter()
+router.include_router(editor_router)
+router.include_router(imports_router)
+router.include_router(practice_router)
 
 router.include_router(router=users_router, prefix="/users")
 router.include_router(router=tests_router, prefix="/tests")

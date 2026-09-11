@@ -15,3 +15,7 @@ __all__ = (
     "Attempt",
     "AttemptAnswer",
 )
+
+from .answer_option import AnswerOption
+from .favorite import Favorite
+from .attempt_question import AttemptQuestion

@@ -78,14 +78,14 @@ async def test_create_chain_and_owner_updates_deletes(client, accounts):
     question = await create('questions', {'test_id': test['id'], 'text': 'Q', 'correct_answer': 'A'})
     attempt = await create('attempts', {'test_id': test['id']})
     assert attempt['user_id'] == user.id
-    answer = await create('attempt-answers', {'attempt_id': attempt['id'], 'question_id': question['id'], 'user_answer': 'A', 'is_correct': True})
+    answer = await create('attempt-answers', {'attempt_id': attempt['id'], 'question_id': question['id'], 'user_answer': 'A'})
     for resource, item, payload in [
         ('tests', test, {'title': 'Updated'}), ('questions', question, {'text': 'Updated'}),
-        ('attempts', attempt, {'finished_at': '2026-09-10T12:00:00'}),
         ('attempt-answers', answer, {'user_answer': 'Updated'}),
     ]:
         response = await client.patch(f'{PREFIX}/{resource}/{item["id"]}', headers=headers, json=payload)
         assert response.status_code == 200, response.text
+    assert (await client.patch(f'{PREFIX}/attempts/{attempt["id"]}', headers=headers, json={'finished_at': '2026-09-10T12:00:00'})).status_code == 409
     for resource, item in [('attempt-answers', answer), ('attempts', attempt), ('questions', question), ('tests', test)]:
         assert (await client.delete(f'{PREFIX}/{resource}/{item["id"]}', headers=headers)).status_code == 204
 
@@ -105,8 +105,8 @@ async def test_cannot_create_under_foreign_parents(client, accounts, records):
     cases = [
         ('questions', {'test_id': foreign['tests'].id, 'text': 'bad', 'correct_answer': 'bad'}),
         ('attempts', {'test_id': foreign['tests'].id}),
-        ('attempt-answers', {'attempt_id': foreign['attempts'].id, 'question_id': foreign['questions'].id, 'user_answer': 'bad', 'is_correct': True}),
-        ('attempt-answers', {'attempt_id': own['attempts'].id, 'question_id': foreign['questions'].id, 'user_answer': 'bad', 'is_correct': True}),
+        ('attempt-answers', {'attempt_id': foreign['attempts'].id, 'question_id': foreign['questions'].id, 'user_answer': 'bad'}),
+        ('attempt-answers', {'attempt_id': own['attempts'].id, 'question_id': foreign['questions'].id, 'user_answer': 'bad'}),
     ]
     for resource, data in cases:
         response = await client.post(f'{PREFIX}/{resource}/', headers=headers, json=data)
@@ -118,7 +118,7 @@ async def test_parent_links_cannot_be_reassigned_or_cleared(client, accounts, re
     target = records[0][resource]
     for value in (None, 2147483647):
         response = await client.patch(f'{PREFIX}/{resource}/{target.id}', headers=accounts[0][1], json={field: value})
-        assert response.status_code == 409, response.text
+        assert response.status_code == (422 if resource == 'attempt-answers' else 409), response.text
 
 
 async def test_question_must_belong_to_attempt_test(client, database, accounts, records):
@@ -129,7 +129,7 @@ async def test_question_must_belong_to_attempt_test(client, database, accounts, 
     database.add(question)
     await database.commit()
     response = await client.post(f'{PREFIX}/attempt-answers/', headers=accounts[0][1], json={
-        'attempt_id': records[0]['attempts'].id, 'question_id': question.id, 'user_answer': 'A', 'is_correct': True,
+        'attempt_id': records[0]['attempts'].id, 'question_id': question.id, 'user_answer': 'A',
     })
     assert response.status_code == 422
 

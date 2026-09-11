@@ -1,10 +1,11 @@
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class TestBase(BaseModel):
-    title: str
+    title: str = Field(min_length=1, max_length=200)
+    description: str = Field(default="", max_length=20000)
 
 
 class TestCreate(TestBase):
@@ -18,7 +19,8 @@ class TestUpdate(TestBase):
 
 class TestUpdatePartial(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    title: str | None = None
+    title: str | None = Field(default=None, min_length=1, max_length=200)
+    description: str | None = Field(default=None, max_length=20000)
 
 
 class TestRead(TestBase):

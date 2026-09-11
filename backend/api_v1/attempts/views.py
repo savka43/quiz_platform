@@ -1,10 +1,11 @@
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, status, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api_v1.auth.dependencies import get_current_user
 from api_v1.permissions import owned_test, immutable_links
 from core import db_helper
 from core.models import User
+from api_v1.practice import service as practice
 
 from . import crud
 from .dependencies import attempt_by_id
@@ -28,7 +29,7 @@ async def create_attempt(
     session: AsyncSession = Depends(db_helper.session_dependency),
 ):
     await owned_test(session, attempt_in.test_id, current_user)
-    return await crud.create_attempt(session=session, attempt_in=attempt_in, user_id=current_user.id)
+    return await practice.start_test(session, current_user, attempt_in.test_id)
 
 
 @router.get("/{attempt_id}", response_model=AttemptRead)
@@ -42,13 +43,8 @@ async def update_attempt(
     session: AsyncSession = Depends(db_helper.session_dependency),
     attempt: AttemptRead = Depends(attempt_by_id),
 ):
-    immutable_links(attempt_update, attempt, ("test_id",))
-    return await crud.update_attempt(
-        session=session,
-        attempt=attempt,
-        attempt_update=attempt_update,
-        partial=True,
-    )
+    raise HTTPException(409, "Use the answers and finish endpoints; attempts cannot be patched")
+
 
 
 @router.delete("/{attempt_id}", status_code=status.HTTP_204_NO_CONTENT)
