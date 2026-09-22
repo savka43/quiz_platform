@@ -1,3 +1,4 @@
+import { Link } from 'react-router'
 import { useState } from 'react'
 import type { FormEvent } from 'react'
 
@@ -46,7 +47,7 @@ function RegistrationForm() {
               <button className="submit" type="submit" disabled={pending}>{pending ? 'Создаём аккаунт…' : 'Создать аккаунт'}</button>
             </form>
           </>}
-          <p className="privacy-link"><a href="/privacy" target="_blank" rel="noreferrer">Обработка персональных данных<span className="sr-only"> (откроется в новой вкладке)</span></a></p>
+          <p className="privacy-link"><Link to="/privacy" target="_blank" rel="noreferrer">Обработка персональных данных<span className="sr-only"> (откроется в новой вкладке)</span></Link></p>
         </section>
   )
 }

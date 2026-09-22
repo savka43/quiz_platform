@@ -1,7 +1,8 @@
+import { Link } from 'react-router'
 function PrivacyPolicy() {
   return (
     <main className="policy-page">
-      <a className="policy-back" href="/register">← К регистрации</a>
+      <Link className="policy-back" to="/register">← К регистрации</Link>
       <article className="policy-document">
         <span className="policy-status">Черновик · 21 сентября 2026</span>
         <h1>Обработка персональных данных</h1>
