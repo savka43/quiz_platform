@@ -13,6 +13,7 @@ function App() {
       <Route element={<AuthBoundary />}>
         <Route element={<RequireAuth />}>
           <Route path="/" element={<HomePage />} />
+          <Route path="/tests/new" element={<TestEditorPage />} />
           <Route path="/tests/:testId/edit" element={<TestEditorPage />} />
         </Route>
         <Route element={<GuestOnly />}>

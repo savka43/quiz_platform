@@ -1,6 +1,6 @@
 import { apiFetch, session } from '../api/client'
 import { useAuth } from '../auth/useAuth'
-import { Link } from 'react-router'
+import { Link, useNavigate } from 'react-router'
 import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 
@@ -9,12 +9,13 @@ type ImportDocument = { title: string; questions: ImportQuestion[] }
 type Quiz = { id: number; title: string; description: string; created_at: string }
 
 function HomePage() {
+  const navigate = useNavigate()
   const { user } = useAuth()
   const [loggingOut, setLoggingOut] = useState(false)
   const [tests, setTests] = useState<Quiz[]>([])
   const [query, setQuery] = useState('')
   const [sort, setSort] = useState('newest')
-  const [modal, setModal] = useState<'create' | 'import' | null>(null)
+  const [modal, setModal] = useState<'import' | null>(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -48,6 +49,7 @@ function HomePage() {
   }, [revision])
 
   function open(next: 'create' | 'import') {
+    if (next === 'create') { navigate('/tests/new'); return }
     setError(''); setPreview(null); setModal(next)
   }
 
@@ -60,11 +62,7 @@ function HomePage() {
       let body: BodyInit
       const headers: Record<string, string> = {}
       {
-        if (modal === 'create') {
-          path = '/tests/'
-          headers['Content-Type'] = 'application/json'
-          body = JSON.stringify({ title: data.get('title'), description: data.get('description') })
-        } else if (preview) {
+        if (preview) {
           path = `/import/${format}/confirm`
           headers['Content-Type'] = 'application/json'
           body = JSON.stringify(preview)
@@ -105,7 +103,7 @@ function HomePage() {
       <div className="home-bottom"><span><span aria-hidden="true">▣</span> Видно только тебе</span><span>PDF и HTML · до 8 МБ</span></div>
     </main>
     <footer className="home-footer"><span>quiz.</span><Link to="/privacy">Обработка персональных данных</Link></footer>
-    {modal && <div className="modal-backdrop" onClick={e => { if (e.target === e.currentTarget && !busy) setModal(null) }}><dialog ref={dialogRef} onCancel={e => { e.preventDefault(); if (!busy) setModal(null) }} className="home-dialog" aria-labelledby="dialog-title" onKeyDown={e => { if (e.key === 'Escape' && !busy) setModal(null) }}><button className="dialog-close" aria-label="Закрыть" disabled={busy} onClick={() => setModal(null)}>×</button><h2 id="dialog-title">{modal === 'create' ? 'Новый тест' : preview ? 'Проверить импорт' : 'Импортировать тест'}</h2><form onSubmit={submit}>{modal === 'create' ? <><label htmlFor="title">Название</label><input id="title" name="title" maxLength={200} required placeholder="Например, основы Python" /><label htmlFor="description">Описание</label><textarea id="description" name="description" maxLength={20000} rows={3} /></> : preview ? <><label htmlFor="import-title">Название теста</label><input id="import-title" value={preview.title} onChange={e => setPreview({ ...preview, title: e.target.value })} required /><p className="hint">{preview.questions.length} вопросов. Проверь формулировки и правильные ответы.</p>{preview.questions.map((question, index) => <fieldset className="preview-question" key={index}><legend>Вопрос {index + 1}</legend><label htmlFor={`question-${index}`}>Формулировка</label><textarea id={`question-${index}`} value={question.text} required onChange={e => updateQuestion(index, { text: e.target.value })} />{question.options.map((option, oi) => <div className="preview-option" key={oi}><input aria-label={`Правильный вариант ${oi + 1} вопроса ${index + 1}`} type="checkbox" checked={option.is_correct === true} onChange={e => updateQuestion(index, { options: question.options.map((o, i) => ({ ...o, is_correct: i === oi ? e.target.checked : question.question_type === 'single_choice' && e.target.checked ? false : o.is_correct })) })} /><input aria-label={`Текст варианта ${oi + 1} вопроса ${index + 1}`} value={option.text} required onChange={e => updateQuestion(index, { options: question.options.map((o, i) => i === oi ? { ...o, text: e.target.value } : o) })} />{option.is_correct === null && <span title="Правильность неизвестна">?</span>}</div>)}{question.options.some(o => o.is_correct === null) && <button type="button" className="empty-link" onClick={() => updateQuestion(index, { options: question.options.map(o => ({ ...o, is_correct: o.is_correct === true })) })}>Подтвердить отмеченные варианты</button>}{question.question_type === 'text' && <><label htmlFor={`answer-${index}`}>Правильный ответ</label><input id={`answer-${index}`} value={question.correct_answer} required onChange={e => updateQuestion(index, { correct_answer: e.target.value })} /></>}{question.blanks.map((blank, bi) => <div key={bi}><label htmlFor={`blank-${index}-${bi}`}>{blank.prompt || `Пропуск ${bi + 1}`}</label>{blank.choices?.length ? <select id={`blank-${index}-${bi}`} required value={blank.correct_answer} onChange={e => updateQuestion(index, { blanks: question.blanks.map((b, i) => i === bi ? { ...b, correct_answer: e.target.value } : b) })}><option value="">Выбери правильный ответ</option>{blank.choices.map((choice, ci) => <option key={ci}>{choice}</option>)}</select> : <input id={`blank-${index}-${bi}`} value={blank.correct_answer} required onChange={e => updateQuestion(index, { blanks: question.blanks.map((b, i) => i === bi ? { ...b, correct_answer: e.target.value } : b) })} />}</div>)}</fieldset>)}</> : <><label htmlFor="file">PDF или HTML, до 8 МБ</label><input id="file" name="file" type="file" accept=".pdf,.html,.htm" required /></>}{error && <p className="error" role="alert">{error}</p>}<button className="submit" disabled={busy}>{busy ? 'Подождите…' : modal === 'create' ? 'Создать' : preview ? 'Сохранить тест' : 'Показать превью'}</button></form></dialog></div>}
+    {modal && <div className="modal-backdrop" onClick={e => { if (e.target === e.currentTarget && !busy) setModal(null) }}><dialog ref={dialogRef} onCancel={e => { e.preventDefault(); if (!busy) setModal(null) }} className="home-dialog" aria-labelledby="dialog-title" onKeyDown={e => { if (e.key === 'Escape' && !busy) setModal(null) }}><button className="dialog-close" aria-label="Закрыть" disabled={busy} onClick={() => setModal(null)}>×</button><h2 id="dialog-title">{preview ? 'Проверить импорт' : 'Импортировать тест'}</h2><form onSubmit={submit}>{preview ? <><label htmlFor="import-title">Название теста</label><input id="import-title" value={preview.title} onChange={e => setPreview({ ...preview, title: e.target.value })} required /><p className="hint">{preview.questions.length} вопросов. Проверь формулировки и правильные ответы.</p>{preview.questions.map((question, index) => <fieldset className="preview-question" key={index}><legend>Вопрос {index + 1}</legend><label htmlFor={`question-${index}`}>Формулировка</label><textarea id={`question-${index}`} value={question.text} required onChange={e => updateQuestion(index, { text: e.target.value })} />{question.options.map((option, oi) => <div className="preview-option" key={oi}><input aria-label={`Правильный вариант ${oi + 1} вопроса ${index + 1}`} type="checkbox" checked={option.is_correct === true} onChange={e => updateQuestion(index, { options: question.options.map((o, i) => ({ ...o, is_correct: i === oi ? e.target.checked : question.question_type === 'single_choice' && e.target.checked ? false : o.is_correct })) })} /><input aria-label={`Текст варианта ${oi + 1} вопроса ${index + 1}`} value={option.text} required onChange={e => updateQuestion(index, { options: question.options.map((o, i) => i === oi ? { ...o, text: e.target.value } : o) })} />{option.is_correct === null && <span title="Правильность неизвестна">?</span>}</div>)}{question.options.some(o => o.is_correct === null) && <button type="button" className="empty-link" onClick={() => updateQuestion(index, { options: question.options.map(o => ({ ...o, is_correct: o.is_correct === true })) })}>Подтвердить отмеченные варианты</button>}{question.question_type === 'text' && <><label htmlFor={`answer-${index}`}>Правильный ответ</label><input id={`answer-${index}`} value={question.correct_answer} required onChange={e => updateQuestion(index, { correct_answer: e.target.value })} /></>}{question.blanks.map((blank, bi) => <div key={bi}><label htmlFor={`blank-${index}-${bi}`}>{blank.prompt || `Пропуск ${bi + 1}`}</label>{blank.choices?.length ? <select id={`blank-${index}-${bi}`} required value={blank.correct_answer} onChange={e => updateQuestion(index, { blanks: question.blanks.map((b, i) => i === bi ? { ...b, correct_answer: e.target.value } : b) })}><option value="">Выбери правильный ответ</option>{blank.choices.map((choice, ci) => <option key={ci}>{choice}</option>)}</select> : <input id={`blank-${index}-${bi}`} value={blank.correct_answer} required onChange={e => updateQuestion(index, { blanks: question.blanks.map((b, i) => i === bi ? { ...b, correct_answer: e.target.value } : b) })} />}</div>)}</fieldset>)}</> : <><label htmlFor="file">PDF или HTML, до 8 МБ</label><input id="file" name="file" type="file" accept=".pdf,.html,.htm" required /></>}{error && <p className="error" role="alert">{error}</p>}<button className="submit" disabled={busy}>{busy ? 'Подождите…' : preview ? 'Сохранить тест' : 'Показать превью'}</button></form></dialog></div>}
   </div>
 }
 export default HomePage
