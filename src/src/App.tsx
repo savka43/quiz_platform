@@ -1,3 +1,5 @@
+import { AuthBoundary, RequireAuth, GuestOnly } from './auth/AuthBoundary'
+import LoginPage from './pages/LoginPage'
 import { Route, Routes } from 'react-router'
 import HomePage from './components/HomePage'
 import PrivacyPolicy from './components/PrivacyPolicy'
@@ -8,9 +10,16 @@ import TestEditorPage from './pages/TestEditorPage'
 function App() {
   return (
     <Routes>
-      <Route path="/" element={<HomePage />} />
-      <Route path="/register" element={<main className="registration-page"><RegistrationForm /></main>} />
-      <Route path="/tests/:testId/edit" element={<TestEditorPage />} />
+      <Route element={<AuthBoundary />}>
+        <Route element={<RequireAuth />}>
+          <Route path="/" element={<HomePage />} />
+          <Route path="/tests/:testId/edit" element={<TestEditorPage />} />
+        </Route>
+        <Route element={<GuestOnly />}>
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/register" element={<main className="registration-page"><RegistrationForm /></main>} />
+        </Route>
+      </Route>
       <Route path="/privacy" element={<PrivacyPolicy />} />
       <Route path="*" element={<NotFoundPage />} />
     </Routes>

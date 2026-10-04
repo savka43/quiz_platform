@@ -1,4 +1,6 @@
-import { Link } from 'react-router'
+import { API_URL } from '../api/client'
+import { safeReturnPath } from '../auth/returnPath'
+import { Link, useLocation, useNavigate } from 'react-router'
 import { useState } from 'react'
 import type { FormEvent } from 'react'
 
@@ -6,7 +8,9 @@ function RegistrationForm() {
   const [visible, setVisible] = useState(false)
   const [pending, setPending] = useState(false)
   const [error, setError] = useState('')
-  const [registered, setRegistered] = useState(false)
+  const navigate = useNavigate()
+  const location = useLocation()
+  const from = safeReturnPath(location.state?.from)
 
   async function register(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -19,7 +23,7 @@ function RegistrationForm() {
     }
     setPending(true)
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL ?? 'http://localhost:8000'}/api/v1/auth/register`, {
+      const response = await fetch(`${API_URL}/api/v1/auth/register`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: String(data.get('email')).trim(), password }),
       })
@@ -27,7 +31,7 @@ function RegistrationForm() {
         setError(response.status === 409 ? 'Этот email уже зарегистрирован. Используйте другой адрес.' : response.status === 422 ? 'Проверьте email и пароль: нужно не меньше 8 символов.' : 'Не получилось создать аккаунт. Попробуйте чуть позже.')
         return
       }
-      setRegistered(true)
+      navigate('/login', { replace: true, state: { registered: true, email: String(data.get('email')).trim(), from } })
     } catch {
       setError('Не удалось связаться с сервером. Проверьте соединение и попробуйте ещё раз.')
     } finally { setPending(false) }
@@ -35,7 +39,6 @@ function RegistrationForm() {
 
   return (
         <section className="form-panel" aria-labelledby="form-title">
-          {registered ? <div className="success" role="status"><span className="success-icon">✓</span><h1 id="form-title">Аккаунт создан</h1><p>Всё получилось. Теперь ты можешь войти с указанным email и паролем.</p></div> : <>
             <h1 id="form-title">Создать аккаунт</h1>
             <form onSubmit={register}>
               <label htmlFor="email">Электронная почта</label>
@@ -46,7 +49,7 @@ function RegistrationForm() {
               {error && <p className="error" role="alert">{error}</p>}
               <button className="submit" type="submit" disabled={pending}>{pending ? 'Создаём аккаунт…' : 'Создать аккаунт'}</button>
             </form>
-          </>}
+          <Link className="dialog-register" to="/login" state={{ from }}>Уже есть аккаунт? Войти</Link>
           <p className="privacy-link"><Link to="/privacy" target="_blank" rel="noreferrer">Обработка персональных данных<span className="sr-only"> (откроется в новой вкладке)</span></Link></p>
         </section>
   )

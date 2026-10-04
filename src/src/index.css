@@ -167,3 +167,5 @@ a:focus-visible { outline: 2px solid #7d9071; outline-offset: 4px; }
 .preview-question select { width: 100%; padding: 12px; margin-bottom: 16px; border: 1px solid #dedfd8; border-radius: 7px; background: #fff; font: inherit; font-size: 12px; }
 .quiz-card h2 a { color: inherit; text-decoration: none; }
 .quiz-card h2 a:hover { text-decoration: underline; text-underline-offset: 4px; }
+.auth-submit { margin-top: 24px; }
+.auth-notice { font-size: 12px; line-height: 1.7; background: #edf2e7; color: #425f36; padding: 12px; border-radius: 7px; margin-bottom: 24px; }
