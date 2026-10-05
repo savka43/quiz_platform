@@ -167,6 +167,7 @@ async def test_new_routes_are_private(client,database,headers,document):
         ('delete',f'/questions/{qid}/favorite',None),
         ('post',f'/tests/{test["id"]}/attempts',None),
         ('get',f'/attempts/{aid}/questions',None),
+        ('get',f'/attempts/{aid}/answers',None),
         ('post',f'/attempts/{aid}/answers',{'question_id':qid,'user_answer':'A'}),
         ('post',f'/attempts/{aid}/finish',None),
         ('get',f'/attempts/{aid}/result',None),
@@ -176,6 +177,39 @@ async def test_new_routes_are_private(client,database,headers,document):
         assert response.status_code == 403, (path,response.text)
     for path in ['/users/me/favorites','/users/me/attempts']:
         assert (await client.get(P+path,headers=foreign)).json() == []
+
+
+async def test_resume_answers_are_scoped_and_hide_correctness(client, headers, document):
+    document['questions'].append({'text': 'Matching', 'question_type': 'matching',
+        'blanks': [{'prompt': 'Not Found', 'correct_answer': '404', 'choices': ['200', '404']}]})
+    test = await create(client, headers, document)
+    attempt = (await client.post(f'{P}/tests/{test["id"]}/attempts', headers=headers)).json()
+    other = (await client.post(f'{P}/tests/{test["id"]}/attempts', headers=headers)).json()
+    aid = attempt['id']
+    path = f'{P}/attempts/{aid}/answers'
+    assert (await client.get(path)).status_code == 401
+    assert (await client.get(path, headers=headers)).json() == []
+    questions = (await client.get(f'{P}/attempts/{aid}/questions', headers=headers)).json()
+    payloads = [{'selected_option_ids': [questions[0]['options'][0]['id']]},
+                {'selected_option_ids': [o['id'] for o in questions[1]['options'][:2]]},
+                {'user_answer': 'Answer'}, {'blank_answers': ['2']}, {'blank_answers': ['404']}]
+    for q, data in zip(questions, payloads):
+        response = await client.post(path, headers=headers, json={'attempt_question_id': q['attempt_question_id'], **data})
+        assert response.status_code == 200
+    rows = (await client.get(path, headers=headers)).json()
+    assert len(rows) == 5 and all(a['is_correct'] is None for a in rows)
+    assert rows[2]['user_answer'] == 'Answer'
+    assert (await client.get(f'{P}/attempts/{other["id"]}/answers', headers=headers)).json() == []
+    # Replacing an answer retains one record and can be restored after a reload.
+    await client.post(path, headers=headers, json={'attempt_question_id': questions[2]['attempt_question_id'], 'user_answer': 'wrong'})
+    assert len((await client.get(path, headers=headers)).json()) == 5
+    assert (await client.post(f'{P}/attempts/{aid}/finish', headers=headers)).status_code == 200
+    finished = (await client.get(path, headers=headers)).json()
+    assert sum(a['is_correct'] for a in finished) == 4
+    result = (await client.get(f'{P}/attempts/{aid}/result', headers=headers)).json()
+    assert result['score'] == 80
+    assert (await client.post(path, headers=headers, json={
+        'attempt_question_id': questions[2]['attempt_question_id'], 'user_answer': 'Answer'})).status_code == 409
 
 
 async def test_parallel_answers_finish_and_edit_snapshot(document):

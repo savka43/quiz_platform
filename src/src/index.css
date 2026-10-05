@@ -168,6 +168,44 @@ a:focus-visible { outline: 2px solid #7d9071; outline-offset: 4px; }
 .quiz-card h2 a { color: inherit; text-decoration: none; }
 .quiz-card h2 a:hover { text-decoration: underline; text-underline-offset: 4px; }
 .auth-submit { margin-top: 24px; }
+.quiz-start { margin-top: 22px; }
+.quiz-start .primary-action { width: 100%; }
+.quiz-edit { display: block; text-align: center; color: #6b7a60; font-size: 12px; margin-top: 15px; text-underline-offset: 3px; }
+.open-attempts { margin-bottom: 36px; }
+.open-attempts h2 { font-size: 17px; font-weight: 500; }
+.open-attempts>a { display: flex; justify-content: space-between; align-items: center; gap: 20px; padding: 16px 20px; margin-bottom: 8px; background: #edf2e7; border: 1px solid #dce5d2; border-radius: 8px; color: #405638; text-decoration: none; font-size: 13px; }
+.open-attempts small { display: block; color: #819074; margin-top: 5px; font-size: 10px; }
+.practice-page { max-width: 880px; margin: auto; padding: 35px 24px 70px; }
+.practice-heading h1 { margin: 0 0 26px; font-size: 30px; font-weight: 500; letter-spacing: -.7px; overflow-wrap: anywhere; }
+.practice-progress-label { display: flex; justify-content: space-between; gap: 15px; color: #7d8b73; font-size: 12px; }
+.practice-heading progress { width: 100%; height: 6px; border: 0; border-radius: 5px; background: #e2e7da; margin-top: 13px; accent-color: #708760; }
+.practice-heading progress::-webkit-progress-bar { background: #e2e7da; border-radius: 5px; }
+.practice-heading progress::-webkit-progress-value { background: #708760; border-radius: 5px; }
+.practice-map { display: flex; flex-wrap: wrap; gap: 7px; margin: 24px 0; max-height: 150px; overflow-y: auto; padding: 4px; }
+.practice-map button { min-width: 35px; min-height: 35px; padding: 6px; border: 1px solid #dce2d4; border-radius: 6px; background: #fff; color: #77866c; font-size: 12px; }
+.practice-map button.answered { background: #e5eddb; color: #455d35; }
+.practice-map button.current { border: 2px solid #435d36; color: #344b29; font-weight: 600; }
+.practice-card { border: 1px solid #e0e5d8; background: #fff; border-radius: 14px; padding: 32px; }
+.practice-card h2 { font-size: 23px; font-weight: 500; margin: 0 0 28px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+.practice-fields { border: 0; padding: 0; margin: 0; min-width: 0; }
+.practice-option { display: flex; align-items: flex-start; gap: 14px; padding: 17px; margin: 10px 0; border: 1px solid #dfe4d7; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 400; line-height: 1.6; }
+.practice-option.selected { border-color: #8fa37d; background: #f1f5eb; }
+.practice-option input { width: 18px; height: 18px; margin: 2px 0 0; flex-shrink: 0; accent-color: #536c42; }
+.practice-option span { white-space: pre-wrap; overflow-wrap: anywhere; min-width: 0; }
+.practice-card textarea,.practice-card select { width: 100%; border: 1px solid #dfe4d7; background: #fff; border-radius: 7px; padding: 13px; font: inherit; font-size: 15px; color: inherit; }
+.practice-card textarea { resize: vertical; }
+.practice-card textarea:focus,.practice-card select:focus { outline: 2px solid #dde5d8; border-color: #7d9071; }
+.practice-blanks>div { margin-bottom: 20px; }
+.practice-save-state { font-size: 11px; color: #7f8d74; margin: 24px 0; }
+.practice-controls { display: flex; gap: 10px; flex-wrap: wrap; border-top: 1px solid #edf0e7; padding-top: 24px; }
+.practice-controls .primary-action { margin-left: auto; }
+.practice-finish { display: flex; align-items: center; gap: 25px; justify-content: space-between; margin-top: 26px; }
+.practice-finish p { color: #87937c; font-size: 12px; line-height: 1.7; max-width: 380px; }
+.practice-complete { text-align: center; padding: 45px; }
+.practice-complete h1 { font-size: 26px; font-weight: 500; overflow-wrap: anywhere; }
+.practice-complete .practice-score { font-size: 64px; color: #4b643d; margin: 24px 0 12px; letter-spacing: -3px; }
+.practice-complete .primary-action { text-decoration: none; max-width: 240px; margin: 30px auto 0; }
+@media(max-width:600px) { .practice-page { padding: 24px 16px 48px; }.practice-card { padding: 22px 18px; }.practice-card h2 { font-size: 20px; }.practice-heading h1 { font-size: 26px; }.practice-controls button { flex: 1 1 auto; }.practice-controls .primary-action { margin-left: 0; width: 100%; }.practice-finish { flex-direction: column; align-items: stretch; gap: 4px; }.practice-card input,.practice-card select,.practice-card textarea { font-size: 16px; } }
 .auth-notice { font-size: 12px; line-height: 1.7; background: #edf2e7; color: #425f36; padding: 12px; border-radius: 7px; margin-bottom: 24px; }
 
 .editor-page { max-width: 940px; margin: 0 auto; padding: 40px 24px 70px; }

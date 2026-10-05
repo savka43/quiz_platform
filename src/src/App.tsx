@@ -6,6 +6,7 @@ import PrivacyPolicy from './components/PrivacyPolicy'
 import RegistrationForm from './components/RegistrationForm'
 import NotFoundPage from './pages/NotFoundPage'
 import TestEditorPage from './pages/TestEditorPage'
+import AttemptPage from './pages/AttemptPage'
 
 function App() {
   return (
@@ -15,6 +16,7 @@ function App() {
           <Route path="/" element={<HomePage />} />
           <Route path="/tests/new" element={<TestEditorPage />} />
           <Route path="/tests/:testId/edit" element={<TestEditorPage />} />
+          <Route path="/attempts/:attemptId" element={<AttemptPage />} />
         </Route>
         <Route element={<GuestOnly />}>
           <Route path="/login" element={<LoginPage />} />

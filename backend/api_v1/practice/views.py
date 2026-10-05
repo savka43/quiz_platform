@@ -81,6 +81,15 @@ async def answer(attempt_id: int, data: AnswerInput, user: User = Depends(get_cu
     return service.public_answer(await service.submit_answer(session, user, attempt_id, data))
 
 
+@router.get('/attempts/{attempt_id}/answers')
+async def saved_answers(attempt_id: int, user: User = Depends(get_current_user),
+                        session: AsyncSession = Depends(db_helper.session_dependency)):
+    attempt = await owned_attempt(session, attempt_id, user)
+    rows = await session.scalars(select(AttemptAnswer)
+        .where(AttemptAnswer.attempt_id == attempt_id).order_by(AttemptAnswer.id))
+    return [service.public_answer(answer, attempt.finished_at is not None) for answer in rows]
+
+
 @router.post('/attempts/{attempt_id}/finish', response_model=AttemptRead)
 async def finish(attempt_id: int, user: User = Depends(get_current_user),
                  session: AsyncSession = Depends(db_helper.session_dependency)):
