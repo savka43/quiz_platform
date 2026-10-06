@@ -7,6 +7,9 @@ import RegistrationForm from './components/RegistrationForm'
 import NotFoundPage from './pages/NotFoundPage'
 import TestEditorPage from './pages/TestEditorPage'
 import AttemptPage from './pages/AttemptPage'
+import AttemptResultPage from './pages/AttemptResultPage'
+import HistoryPage from './pages/HistoryPage'
+import FavoritesPage from './pages/FavoritesPage'
 
 function App() {
   return (
@@ -17,6 +20,9 @@ function App() {
           <Route path="/tests/new" element={<TestEditorPage />} />
           <Route path="/tests/:testId/edit" element={<TestEditorPage />} />
           <Route path="/attempts/:attemptId" element={<AttemptPage />} />
+          <Route path="/attempts/:attemptId/result" element={<AttemptResultPage />} />
+          <Route path="/history" element={<HistoryPage />} />
+          <Route path="/favorites" element={<FavoritesPage />} />
         </Route>
         <Route element={<GuestOnly />}>
           <Route path="/login" element={<LoginPage />} />

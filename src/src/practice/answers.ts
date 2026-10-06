@@ -1,6 +1,6 @@
 import type { QuestionType } from '../editor/document'
 
-export type Attempt = { id: number; test_id: number | null; test_title: string; finished_at: string | null; score: number | null }
+export type Attempt = { id: number; test_id: number | null; test_title: string; started_at: string; finished_at: string | null; score: number | null }
 export type PracticeQuestion = {
   attempt_question_id: number; question_id: number | null; text: string; question_type: QuestionType;
   options: { id: number; text: string }[]; blanks: { prompt: string; choices: string[] }[];
