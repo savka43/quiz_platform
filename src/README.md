@@ -1,77 +1,34 @@
-# React + TypeScript + Vite
+# Quiz — локальная версия
 
-![Quiz application](../quiz_picture.png)
+Frontend может работать без API. Тесты, прохождения, результаты и избранное сохраняются в `localStorage` текущего браузера. Импорт HTML и текстовых PDF разбирается на устройстве.
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+## Запуск
 
-Currently, two official plugins are available:
-
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-
+```bash
+npm ci
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+По умолчанию включён локальный режим. Короткая справка на главной объясняет, где хранятся данные. В разделе можно скачать или восстановить JSON-копию.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+Для версии с backend создай `.env.local` по образцу `.env.example`, поставь `VITE_DATA_MODE=api` и укажи адрес API в `VITE_API_URL`.
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+## Аккаунтная версия
 
+`VITE_ACCOUNT_APP_URL` задаёт базовый URL отдельной версии с аккаунтами. Кнопки регистрации и входа добавляют к нему `/register` или `/login`. Если настройка пустая, приложение показывает инструкцию, где задать URL.
+
+## GitHub Pages
+
+В репозитории добавлен workflow `.github/workflows/pages.yml`. Он собирает локальную версию при push в `main`. В настройках репозитория выбери **Settings → Pages → GitHub Actions**. Для внешней страницы с аккаунтами добавь Actions variable `ACCOUNT_APP_URL`.
+
+Vite собирает проектную страницу с base `/quiz_platform/`, а маршрутизация использует hash, поэтому обновление вложенного маршрута не требует серверного fallback.
+
+## Данные
+
+Это локальное хранилище одного браузера, а не учётная запись: автоматической синхронизации между людьми и устройствами нет. Данные можно удалить очисткой данных сайта; для переноса используй резервную копию на главной странице.
+
+```bash
+npm run build
+npm run lint
+npm test
 ```

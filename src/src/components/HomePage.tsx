@@ -1,5 +1,6 @@
-import { apiFetch, session } from '../api/client'
+import { apiFetch, LOCAL_MODE, session } from '../api/client'
 import { useAuth } from '../auth/useAuth'
+import { exportLocalBackup, restoreLocalBackup } from '../data/localStore'
 import StartAttempt from '../practice/StartAttempt'
 import OpenAttempts from '../practice/OpenAttempts'
 import { Link, useNavigate } from 'react-router'
@@ -19,6 +20,7 @@ function HomePage() {
   const [sort, setSort] = useState('newest')
   const [modal, setModal] = useState<'import' | null>(null)
   const [error, setError] = useState('')
+  const [backupStatus, setBackupStatus] = useState('')
   const [loading, setLoading] = useState(false)
   const [busy, setBusy] = useState(false)
   const [revision, setRevision] = useState(0)
@@ -26,6 +28,30 @@ function HomePage() {
   const dialogRef = useRef<HTMLDialogElement>(null)
   useEffect(() => { if (modal) dialogRef.current?.showModal() }, [modal])
   const [format, setFormat] = useState('html')
+
+  function downloadBackup() {
+    try {
+      const url = URL.createObjectURL(new Blob([exportLocalBackup()], { type: 'application/json' }))
+      const link = document.createElement('a'); link.href = url; link.download = `quiz-backup-${new Date().toISOString().slice(0, 10)}.json`; link.click(); URL.revokeObjectURL(url); setBackupStatus('Резервная копия скачана.')
+    } catch { setError('Не удалось прочитать локальные данные браузера.') }
+  }
+  async function loadBackup(event: FormEvent<HTMLInputElement>) {
+    const file = event.currentTarget.files?.[0]
+    event.currentTarget.value = ''
+    if (!file) return
+    if (!window.confirm('Заменить текущие тесты, попытки и избранное данными из этой копии?')) return
+    try { restoreLocalBackup(await file.text()); setRevision(value => value + 1); setError(''); setBackupStatus('Резервная копия восстановлена.') }
+    catch (e) { setError(e instanceof Error ? e.message : 'Не удалось восстановить резервную копию.') }
+  }
+  async function deleteTest(test: Quiz) {
+    if (!window.confirm(`Удалить тест «${test.title}»? Старые результаты прохождения сохранятся.`)) return
+    setError('')
+    try {
+      const response = await apiFetch(`/tests/${test.id}`, { method: 'DELETE' })
+      if (!response.ok) throw new Error('Не удалось удалить тест.')
+      setRevision(value => value + 1)
+    } catch (e) { setError(e instanceof Error ? e.message : 'Нет соединения с хранилищем.') }
+  }
 
   useEffect(() => {
     const controller = new AbortController()
@@ -78,7 +104,10 @@ function HomePage() {
         }
       }
       const response = await apiFetch(path, { method: 'POST', headers, body })
-      if (!response.ok) throw new Error(response.status === 401 ? 'Проверьте email и пароль или войдите заново.' : response.status === 422 ? 'Проверьте данные. У каждого вопроса должны быть указаны правильные ответы.' : 'Не получилось выполнить действие. Попробуйте ещё раз.')
+      if (!response.ok) {
+        const failure = await response.json().catch(() => ({})) as { detail?: string }
+        throw new Error(failure.detail || (response.status === 401 ? 'Проверьте email и пароль или войдите заново.' : response.status === 422 ? 'Проверьте данные. У каждого вопроса должны быть указаны правильные ответы.' : 'Не получилось выполнить действие. Попробуйте ещё раз.'))
+      }
       const result = await response.json()
       if (modal === 'import' && !preview) {
         setPreview({ title: result.title, questions: result.questions.map((q: ImportQuestion) => ({ text: q.text, question_type: q.question_type, options: q.options, correct_answer: q.correct_answer, blanks: q.blanks, explanation: q.explanation })) })
@@ -96,13 +125,14 @@ function HomePage() {
   const filtered = tests.filter(test => test.title.toLowerCase().includes(query.toLowerCase())).sort((a, b) => sort === 'title' ? a.title.localeCompare(b.title, 'ru') : sort === 'oldest' ? a.id - b.id : b.id - a.id)
 
   return <div className="home">
-    <header className="home-header"><Link className="home-logo" to="/">quiz<span>.</span></Link><span className="home-space">Личное пространство</span><nav className="home-nav" aria-label="Разделы"><Link to="/history">История</Link><Link to="/favorites">Избранное</Link></nav><button className="account-button" disabled={loggingOut} title={user?.email} onClick={async () => { setLoggingOut(true); setError(''); try { await session.logout() } catch { setError('Не удалось выйти. Проверьте соединение и повторите попытку.') } finally { setLoggingOut(false) } }}>{loggingOut ? 'Выходим…' : 'Выйти'}<span aria-hidden="true">↗</span></button></header>
+    <header className="home-header"><Link className="home-logo" to="/">quiz<span>.</span></Link><span className="home-space">Личное пространство</span><nav className="home-nav" aria-label="Разделы"><Link to="/history">История</Link><Link to="/favorites">Избранное</Link></nav>{LOCAL_MODE ? <Link className="account-button" to="/login">Войти ↗</Link> : <button className="account-button" disabled={loggingOut} title={user?.email} onClick={async () => { setLoggingOut(true); setError(''); try { await session.logout() } catch { setError('Не удалось выйти. Проверьте соединение и повторите попытку.') } finally { setLoggingOut(false) } }}>{loggingOut ? 'Выходим…' : 'Выйти'}<span aria-hidden="true">↗</span></button>}</header>
     <main className="home-content">
+      {LOCAL_MODE && <aside className="local-notice"><span><strong>Локальная версия.</strong> Тесты и результаты хранятся только в этом браузере.{backupStatus && <small className="backup-status" role="status">{backupStatus}</small>}</span><span className="local-backup-actions"><button type="button" onClick={downloadBackup}>Скачать копию</button><label className="backup-restore">Восстановить копию<input type="file" accept="application/json,.json" onChange={event => void loadBackup(event)} /></label><Link to="/register">Аккаунт →</Link></span></aside>}
       <OpenAttempts />
       <div className="home-heading"><div><p className="home-kicker">БИБЛИОТЕКА</p><h1>Мои тесты<span>{tests.length.toString().padStart(2, '0')}</span></h1></div><div className="home-actions"><button className="secondary-action" onClick={() => open('import')}><span aria-hidden="true">↑</span> Импортировать</button><button className="primary-action" onClick={() => open('create')}><span aria-hidden="true">+</span> Создать тест</button></div></div>
       <div className="home-toolbar"><div className="home-search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" /><path d="m16 16 4 4" /></svg><input aria-label="Поиск тестов" placeholder="Найти тест" value={query} onChange={e => setQuery(e.target.value)} /></div><select aria-label="Сортировка" value={sort} onChange={e => setSort(e.target.value)}><option value="newest">Сначала новые</option><option value="oldest">Сначала старые</option><option value="title">По названию</option></select></div>
       {error && !modal && <div className="error" role="alert">{error} <button onClick={() => setRevision(v => v + 1)}>Повторить</button></div>}
-      {loading ? <div className="home-empty" role="status">Загружаем тесты…</div> : filtered.length ? <div className="quiz-grid">{filtered.map(test => <article className="quiz-card" key={test.id}><div className="quiz-card-top"><span className="quiz-mark" aria-hidden="true">≡</span><span>{new Date(test.created_at).toLocaleDateString('ru-RU')}</span></div><h2><Link to={`/tests/${test.id}/edit`}>{test.title}</Link></h2><p>{test.description || 'Без описания'}</p><StartAttempt testId={test.id} /><Link className="quiz-edit" to={`/tests/${test.id}/edit`}>Редактировать</Link><span className="quiz-private">Личный тест</span></article>)}</div> : <section className="home-empty"><div className="empty-drawing" aria-hidden="true"><div className="paper-back" /><div className="paper-front"><span /><span /><i>✓</i></div></div><h2>{query ? 'Ничего не нашлось' : 'Здесь будут твои тесты'}</h2><p>{query ? 'Попробуй другое название.' : 'Создай первый тест или загрузи готовый файл.'}</p><button className="empty-link" onClick={() => query ? setQuery('') : open('create')}>{query ? 'Сбросить поиск' : 'Создать первый тест'} <span aria-hidden="true">→</span></button></section>}
+      {loading ? <div className="home-empty" role="status">Загружаем тесты…</div> : filtered.length ? <div className="quiz-grid">{filtered.map(test => <article className="quiz-card" key={test.id}><div className="quiz-card-top"><span className="quiz-mark" aria-hidden="true">≡</span><span>{new Date(test.created_at).toLocaleDateString('ru-RU')}</span></div><h2><Link to={`/tests/${test.id}/edit`}>{test.title}</Link></h2><p>{test.description || 'Без описания'}</p><StartAttempt testId={test.id} /><Link className="quiz-edit" to={`/tests/${test.id}/edit`}>Редактировать</Link><button className="quiz-delete" onClick={() => void deleteTest(test)}>Удалить тест</button><span className="quiz-private">Личный тест</span></article>)}</div> : <section className="home-empty"><div className="empty-drawing" aria-hidden="true"><div className="paper-back" /><div className="paper-front"><span /><span /><i>✓</i></div></div><h2>{query ? 'Ничего не нашлось' : 'Здесь будут твои тесты'}</h2><p>{query ? 'Попробуй другое название.' : 'Создай первый тест или загрузи готовый файл.'}</p><button className="empty-link" onClick={() => query ? setQuery('') : open('create')}>{query ? 'Сбросить поиск' : 'Создать первый тест'} <span aria-hidden="true">→</span></button></section>}
       <div className="home-bottom"><span><span aria-hidden="true">▣</span> Видно только тебе</span><span>PDF и HTML · до 8 МБ</span></div>
     </main>
     <footer className="home-footer"><span>quiz.</span><Link to="/privacy">Обработка персональных данных</Link></footer>

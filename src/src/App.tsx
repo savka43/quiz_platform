@@ -1,9 +1,12 @@
-import { AuthBoundary, RequireAuth, GuestOnly } from './auth/AuthBoundary'
-import LoginPage from './pages/LoginPage'
+import { AuthBoundary, RequireAuth } from './auth/AuthBoundary'
+import { GuestOnly } from './auth/AuthBoundary'
 import { Route, Routes } from 'react-router'
+import { LOCAL_MODE } from './api/client'
+import LoginPage from './pages/LoginPage'
+import RegistrationForm from './components/RegistrationForm'
 import HomePage from './components/HomePage'
 import PrivacyPolicy from './components/PrivacyPolicy'
-import RegistrationForm from './components/RegistrationForm'
+import AccountRedirectPage from './pages/AccountRedirectPage'
 import NotFoundPage from './pages/NotFoundPage'
 import TestEditorPage from './pages/TestEditorPage'
 import AttemptPage from './pages/AttemptPage'
@@ -25,8 +28,8 @@ function App() {
           <Route path="/favorites" element={<FavoritesPage />} />
         </Route>
         <Route element={<GuestOnly />}>
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/register" element={<main className="registration-page"><RegistrationForm /></main>} />
+          <Route path="/login" element={LOCAL_MODE ? <AccountRedirectPage page="login" /> : <LoginPage />} />
+          <Route path="/register" element={LOCAL_MODE ? <AccountRedirectPage page="register" /> : <main className="registration-page"><RegistrationForm /></main>} />
         </Route>
       </Route>
       <Route path="/privacy" element={<PrivacyPolicy />} />
