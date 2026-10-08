@@ -43,6 +43,16 @@ function optionRead(o: LocalOption) { return { id: o.id, text: o.text } }
 function snapshotRead(q: Snapshot) { return { attempt_question_id: q.attempt_question_id, question_id: q.question_id, position: q.position, text: q.text, question_type: q.question_type, options: q.options.map(optionRead), blanks: q.blanks.map(b => ({ prompt: b.prompt, choices: b.choices })) } }
 function answerRead(a: LocalAnswer, finished: boolean) { return { id: a.id, attempt_id: a.attempt_id, question_id: a.question_id, attempt_question_id: a.attempt_question_id, selected_option_ids: a.selected_option_ids, user_answer: a.user_answer, blank_answers: a.blank_answers, is_correct: finished ? a.is_correct : null } }
 function normalize(s: string) { return s.normalize('NFKC').trim().replace(/\s+/g, ' ').toLocaleLowerCase() }
+function htmlText(element: Element | null | undefined) {
+  if (!element) return ''
+  const copy = element.cloneNode(true) as HTMLElement
+  copy.querySelectorAll('script,style,svg').forEach(node => node.remove())
+  copy.querySelectorAll('mjx-container').forEach(container => {
+    const math = container.querySelector('math')
+    if (math) container.replaceWith(math.cloneNode(true))
+  })
+  return (copy.textContent ?? '').replace(/\s+/g, ' ').trim()
+}
 function checkAnswer(q: Snapshot, answer: Pick<LocalAnswer, 'selected_option_ids' | 'user_answer' | 'blank_answers'>) {
   if (q.question_type === 'single_choice' || q.question_type === 'multiple_choice') {
     const valid = new Set(q.options.map(o => o.id)); const selected = new Set(answer.selected_option_ids)
@@ -84,24 +94,30 @@ function previewQuestion(q: Record<string, unknown>, index: number) {
 }
 function parseHtml(html: string, title: string) {
   const doc = new DOMParser().parseFromString(html, 'text/html')
-  const headings = [...doc.querySelectorAll('h2')].filter(h => /^Вопрос\s+\d+$/.test(h.textContent?.trim() ?? ''))
+  const headings = [...doc.querySelectorAll('h2')].filter(h => /^вопрос\s+\d+$/.test(normalize(htmlText(h))))
   if (!headings.length) throw new Error('Не найдены вопросы в формате SyncShare.')
+  const pageHeading = [...doc.querySelectorAll('h1')].find(h => normalize(htmlText(h)) === 'просмотр вопросов')
+  const pageTitle = htmlText(pageHeading?.parentElement?.querySelector('p'))
+  if (pageTitle) title = pageTitle
   const questions = headings.map((heading, index) => {
-    const number = Number(heading.textContent?.trim().split(/\s+/).at(-1))
+    const number = Number(htmlText(heading).match(/\d+/)?.[0] ?? index + 1)
     let card: HTMLElement = heading.parentElement ?? doc.body
     while (card.parentElement && !card.className.split(/\s+/).includes('overflow-hidden')) card = card.parentElement
-    const body = card.querySelector('p')?.textContent?.trim() ?? ''
+    const body = htmlText(card.querySelector('p'))
     if (!body) throw new Error(`Не найден текст вопроса ${number}.`)
     const fields = [...card.querySelectorAll<HTMLInputElement>('input[type="radio"],input[type="checkbox"]')]
     const options = fields.map(field => {
       let row: HTMLElement = field.parentElement ?? card
       while (row !== card && !row.querySelector('label')) row = row.parentElement ?? card
-      return { text: row.querySelector('label')?.textContent?.trim() ?? '', is_correct: null as boolean | null }
+      return { text: htmlText(row.querySelector('label')), is_correct: null as boolean | null }
     }).filter(o => o.text)
     let question_type: QuestionType = fields.some(f => f.type === 'checkbox') ? 'multiple_choice' : 'single_choice'
     let correct_answer = ''
     let blanks: { prompt: string; correct_answer: string; choices: string[] }[] = []
     const warnings: string[] = []
+    const correctness = new Map<string, boolean | null>()
+    const answerLabels = new Map<string, string>()
+    const conflicts = new Set<string>()
     if (!options.length) {
       const textFields = [...card.querySelectorAll<HTMLInputElement>('input[type="text"]')]
       question_type = textFields.length > 1 ? 'fill_blank' : 'text'
@@ -109,33 +125,57 @@ function parseHtml(html: string, title: string) {
       warnings.push('Правильный текстовый ответ нужно заполнить вручную.')
     } else if (options.length < 2) warnings.push('Проверьте количество вариантов ответа.')
     for (const table of card.querySelectorAll('table')) {
-      const headers = [...table.querySelectorAll('th')].map(h => h.textContent?.trim() ?? '')
-      if (headers.includes('Правильность')) {
-        const answerCol = Math.max(0, headers.indexOf('Ответ')); const correctCol = headers.indexOf('Правильность')
+      const headers = [...table.querySelectorAll('th')].map(h => normalize(htmlText(h)))
+      if (headers.includes('правильность')) {
+        const answerCol = Math.max(0, headers.indexOf('ответ')); const correctCol = headers.indexOf('правильность')
         for (const row of table.querySelectorAll('tr')) {
           const cells = [...row.querySelectorAll('td')]
           if (cells.length <= Math.max(answerCol, correctCol)) continue
-          const text = cells[answerCol].textContent?.trim() ?? ''
-          const mark = cells[correctCol].textContent?.trim().toLocaleLowerCase()
-          const option = options.find(o => normalize(o.text) === normalize(text))
-          if (option && (mark === 'правильно' || mark === 'неправильно')) option.is_correct = mark === 'правильно'
+          const text = htmlText(cells[answerCol])
+          const mark = normalize(htmlText(cells[correctCol]))
+          const key = normalize(text)
+          if (text && !answerLabels.has(key)) answerLabels.set(key, text)
+          const value = mark === 'правильно' ? true : mark === 'неправильно' ? false : null
+          const previous = correctness.get(key)
+          if (conflicts.has(key)) continue
+          if (previous !== undefined && previous !== null && value !== null && previous !== value) {
+            correctness.set(key, null)
+            conflicts.add(key)
+            warnings.push('В таблице есть противоречивые отметки правильности.')
+          } else if (value !== null || !correctness.has(key)) correctness.set(key, value)
         }
       }
-      if (headers[0] === 'Левая часть' && headers[1] === 'Правая часть') {
+      if (headers.slice(0, 2).join('|') === 'левая часть|правая часть') {
         question_type = 'matching'
         const choicesHeading = [...card.querySelectorAll('h3')].find(h => h.textContent?.trim() === 'Варианты правой части')
-        const choices = choicesHeading ? [...(choicesHeading.parentElement?.querySelectorAll('li') ?? [])].map(li => li.textContent?.replace(/^•\s*/, '').trim() ?? '') : []
-        blanks = [...table.querySelectorAll('tr')].flatMap(row => { const cells = [...row.querySelectorAll('td')]; return cells.length === 2 ? [{ prompt: cells[0].textContent?.trim() ?? '', correct_answer: '', choices }] : [] })
+        const choices = choicesHeading ? [...(choicesHeading.parentElement?.querySelectorAll('li') ?? [])].map(li => htmlText(li).replace(/^•\s*/, '')) : []
+        blanks = [...table.querySelectorAll('tr')].flatMap(row => { const cells = [...row.querySelectorAll('td')]; return cells.length === 2 ? [{ prompt: htmlText(cells[0]), correct_answer: '', choices }] : [] })
         warnings.push('Проверьте правильные пары в задании на сопоставление.')
+      }
+    }
+    for (const option of options) option.is_correct = correctness.get(normalize(option.text)) ?? null
+    if (question_type === 'single_choice' && options.length && !options.some(option => conflicts.has(normalize(option.text)))) {
+      const knownCorrect = options.filter(option => option.is_correct === true).length
+      const knownWrong = options.filter(option => option.is_correct === false).length
+      const unknown = options.filter(option => option.is_correct === null)
+      if (knownCorrect === 1) for (const option of unknown) option.is_correct = false
+      else if (knownCorrect === 0 && unknown.length === 1 && knownWrong === options.length - 1) unknown[0].is_correct = true
+      const labels = options.map(option => normalize(option.text))
+      const duplicates = new Set(labels.filter((label, i) => labels.indexOf(label) !== i))
+      if (duplicates.size) {
+        for (const option of options) if (duplicates.has(normalize(option.text))) option.is_correct = null
+        warnings.push('Варианты с одинаковым текстом нужно проверить вручную.')
       }
     }
     if (options.some(o => o.is_correct === null)) warnings.push('В файле нет подтверждённых правильных ответов для всех вариантов.')
     if (card.querySelector('img')) warnings.push('Вопрос содержит изображение; оно не будет добавлено в локальную копию.')
-    const explicitAnswer = [...card.querySelectorAll('h3')].find(h => h.textContent?.trim() === 'Правильный ответ')?.parentElement?.querySelector('p')?.textContent?.trim()
-    if (!options.length && question_type === 'text' && explicitAnswer && explicitAnswer !== 'Правильного ответа нет') { correct_answer = explicitAnswer; warnings.length = 0 }
+    const explicitAnswer = htmlText([...card.querySelectorAll('h3')].find(h => htmlText(h) === 'Правильный ответ')?.parentElement?.querySelector('p'))
+    const tableAnswer = [...correctness].filter(([, value]) => value === true).map(([answer]) => answerLabels.get(answer) ?? answer)
+    const textKey = explicitAnswer && explicitAnswer !== 'Правильного ответа нет' ? explicitAnswer : tableAnswer.length === 1 ? tableAnswer[0] : ''
+    if (!options.length && question_type === 'text' && textKey) { correct_answer = textKey; warnings.splice(0, warnings.length, ...warnings.filter(w => !w.includes('текстовый ответ'))); }
     return { ...previewQuestion({ text: body, question_type, options, correct_answer, blanks, explanation: '' }, index), number, warnings, needs_review: warnings.length > 0 }
   })
-  const declared = doc.body.innerText.match(/Вопросов в тесте:\s*(\d+)/)
+  const declared = htmlText(doc.body).match(/Вопросов в тесте:\s*(\d+)/)
   const warnings = declared && Number(declared[1]) !== questions.length ? [`В файле заявлено ${declared[1]} вопросов, найдено ${questions.length}.`] : []
   return { title: title || 'Импорт HTML', source: 'html_import', question_count: questions.length, needs_review_count: questions.filter(q => q.needs_review).length, warnings, questions }
 }

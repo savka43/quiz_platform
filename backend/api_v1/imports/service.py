@@ -114,12 +114,19 @@ def parse_html(html: str, title: str = 'Импорт HTML') -> Preview:
     parser = TreeParser()
     parser.feed(html)
     root = parser.root
-    headings = [h for h in root.find_all('h2') if re.fullmatch(r'Вопрос\s+\d+', h.text())]
+    headings = [h for h in root.find_all('h2') if re.fullmatch(r'вопрос\s+\d+', normalized(h.text()))]
     if not headings:
         raise ValueError('Не найдены вопросы в формате SyncShare')
+    # SyncShare exports the quiz title in the paragraph beside the page heading.
+    for heading in root.find_all('h1'):
+        if normalized(heading.text()) == 'просмотр вопросов':
+            page_title = next((p.text() for p in heading.parent.find_all('p') if p.text()), '')
+            if page_title:
+                title = page_title
+            break
     questions = []
     for h in headings:
-        number = int(h.text().split()[-1])
+        number = int(re.search(r'\d+', h.text()).group())
         card = h.parent
         while card.parent and 'overflow-hidden' not in card.attrs.get('class', '').split():
             card = card.parent
@@ -144,9 +151,11 @@ def parse_html(html: str, title: str = 'Импорт HTML') -> Preview:
         warnings = []
         source = []
         # Selected inputs and vote counts are NOT an answer key.
-        correctness = {}
+        correctness: dict[str, bool | None] = {}
+        answer_labels: dict[str, str] = {}
+        conflicts: set[str] = set()
         for table in card.find_all('table'):
-            headers = [th.text().casefold() for th in table.find_all('th')]
+            headers = [normalized(th.text()) for th in table.find_all('th')]
             if 'правильность' not in headers:
                 continue
             answer_col = headers.index('ответ') if 'ответ' in headers else 0
@@ -155,18 +164,39 @@ def parse_html(html: str, title: str = 'Импорт HTML') -> Preview:
                 cells = row.find_all('td')
                 if len(cells) <= max(answer_col, correct_col):
                     continue
-                status = cells[correct_col].text().casefold()
+                status = normalized(cells[correct_col].text())
                 value = {'правильно': True, 'неправильно': False}.get(status)
                 key = normalized(cells[answer_col].text())
+                answer_labels.setdefault(key, cells[answer_col].text())
                 source.append(f'{cells[answer_col].text()}: {cells[correct_col].text()}')
-                if key in correctness and correctness[key] != value:
+                if key in conflicts:
+                    continue
+                if key in correctness and correctness[key] is not None and value is not None and correctness[key] != value:
                     correctness[key] = None
+                    conflicts.add(key)
                     warnings.append('Противоречивые отметки правильности')
-                else:
+                elif value is not None or key not in correctness:
                     correctness[key] = value
         for option in options:
             option.is_correct = correctness.get(normalized(option.text))
         question_type = 'multiple_choice' if 'checkbox' in types else 'single_choice'
+        if question_type == 'single_choice' and options and not any(normalized(option.text) in conflicts for option in options):
+            known_correct = [i for i, option in enumerate(options) if option.is_correct is True]
+            unknown = [i for i, option in enumerate(options) if option.is_correct is None]
+            known_wrong = [i for i, option in enumerate(options) if option.is_correct is False]
+            if len(known_correct) == 1:
+                for i in unknown:
+                    options[i].is_correct = False
+            elif not known_correct and len(known_wrong) == len(options) - 1 and len(unknown) == 1:
+                options[unknown[0]].is_correct = True
+            # A repeated answer label cannot be safely mapped to one option.
+            labels = [normalized(option.text) for option in options]
+            if len(labels) != len(set(labels)):
+                duplicate_keys = {label for label in labels if labels.count(label) > 1}
+                for option in options:
+                    if normalized(option.text) in duplicate_keys:
+                        option.is_correct = None
+                warnings.append('Варианты с одинаковым текстом нужно проверить вручную')
         if not options:
             fields = [i for i in inputs if i.attrs.get('type') == 'text']
             question_type = 'fill_blank' if len(fields) > 1 else 'text'
@@ -186,15 +216,15 @@ def parse_html(html: str, title: str = 'Импорт HTML') -> Preview:
                 if heading.text() == 'Правильный ответ':
                     values = [p.text() for p in heading.parent.find_all('p')]
                     explicit.extend(v for v in values if v and v != 'Правильного ответа нет')
-            explicit.extend(cells for cells, mark in correctness.items() if mark is True)
+            explicit.extend(answer_labels[key] for key, mark in correctness.items() if mark is True)
             if len(set(map(normalized, explicit))) == 1:
                 q.correct_answer = explicit[0]
                 q.source_answer = explicit[0]
                 q.warnings = [w for w in q.warnings if 'текстовый ответ' not in w]
         # Preserve both sides of matching questions instead of discarding their tables.
         for table in card.find_all('table'):
-            headers = [th.text() for th in table.find_all('th')]
-            if headers == ['Левая часть', 'Правая часть']:
+            headers = [normalized(th.text()) for th in table.find_all('th')]
+            if headers[:2] == ['левая часть', 'правая часть']:
                 choices = []
                 for heading in card.find_all('h3'):
                     if heading.text() == 'Варианты правой части':

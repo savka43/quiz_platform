@@ -82,6 +82,35 @@ def test_html_explicit_correctness():
     assert not q.needs_review
 
 
+def test_syncshare_single_choice_infers_only_from_an_explicit_key():
+    markup = '''<main><div><h1>Просмотр вопросов</h1><p>Модуль 1</p></div>
+    <div class="overflow-hidden"><h2>Вопрос 1</h2><p>Выберите ответ</p>
+    <div><input type="radio"><label>A</label></div><div><input type="radio"><label>B</label></div>
+    <div><input type="radio"><label>C</label></div>
+    <table><tr><th>Ответ</th><th>Выбрали этот вариант</th><th>Правильность</th></tr>
+    <tr><td>B</td><td>1</td><td>Правильно</td></tr></table></div></main>'''
+    preview = parse_html(markup, 'wrong filename')
+    assert preview.title == 'Модуль 1'
+    assert [o.is_correct for o in preview.questions[0].options] == [False, True, False]
+    assert not preview.questions[0].needs_review
+
+
+def test_syncshare_unknown_status_is_not_treated_as_a_key():
+    markup = html_question(option('A') + option('B'), '''<table><tr><th>Ответ</th><th>Правильность</th></tr>
+    <tr><td>A</td><td>Неизвестно</td></tr></table>''')
+    q = parse_html(markup).questions[0]
+    assert [o.is_correct for o in q.options] == [None, None]
+    assert q.needs_review
+
+
+def test_syncshare_infers_last_single_choice_after_all_other_options_are_wrong():
+    markup = html_question(option('A') + option('B') + option('C'), '''<table><tr><th>Ответ</th><th>Правильность</th></tr>
+    <tr><td>A</td><td>Неправильно</td></tr><tr><td>B</td><td>Неправильно</td></tr></table>''')
+    q = parse_html(markup).questions[0]
+    assert [o.is_correct for o in q.options] == [False, False, True]
+    assert not q.needs_review
+
+
 def test_html_text_key():
     key = '<div><h3>Правильный ответ</h3><p>Текст</p></div>'
     q = parse_html(html_question('', key)).questions[0]
