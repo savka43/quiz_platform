@@ -11,19 +11,24 @@ from api_v1.editor.schemas import TestDocument
 from api_v1.editor.service import save_document, read_document
 from core import db_helper
 from core.models import User
-from .service import MAX_BYTES, extract_pdf, parse_pdf_text, parse_html
+from .service import MAX_BYTES, extract_pdf, parse_pdf_text, parse_html, parse_json_text
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix='/import', tags=['Import'])
 
 
 @router.post('/{format}/preview')
-async def preview(format: Literal['pdf', 'html'], file: UploadFile = File(),
+async def preview(format: Literal['pdf', 'html', 'json'], file: UploadFile = File(),
                   user: User = Depends(get_current_user)):
     suffix = Path(file.filename or '').suffix.casefold()
-    if suffix not in ({'.pdf'} if format == 'pdf' else {'.html', '.htm'}):
+    suffixes = {'pdf': {'.pdf'}, 'html': {'.html', '.htm'}, 'json': {'.json'}}
+    if suffix not in suffixes[format]:
         raise HTTPException(415, 'File extension does not match the import format')
-    allowed = {'application/pdf', 'application/octet-stream'} if format == 'pdf' else {'text/html', 'application/xhtml+xml', 'application/octet-stream'}
+    allowed = {
+        'pdf': {'application/pdf', 'application/octet-stream'},
+        'html': {'text/html', 'application/xhtml+xml', 'application/octet-stream'},
+        'json': {'application/json', 'text/plain', 'application/octet-stream'},
+    }[format]
     if file.content_type not in allowed:
         raise HTTPException(415, 'Unsupported file content type')
     try:
@@ -37,8 +42,10 @@ async def preview(format: Literal['pdf', 'html'], file: UploadFile = File(),
         if format == 'pdf':
             text = await run_in_threadpool(extract_pdf, data)
             result = await run_in_threadpool(parse_pdf_text, text, title)
-        else:
+        elif format == 'html':
             result = await run_in_threadpool(parse_html, data.decode('utf-8-sig'), title)
+        else:
+            result = await run_in_threadpool(parse_json_text, data.decode('utf-8-sig'), title)
     except (ValueError, UnicodeError) as exc:
         logger.info('Import rejected: user=%s format=%s', user.id, format)
         raise HTTPException(422, str(exc)) from None
@@ -49,7 +56,7 @@ async def preview(format: Literal['pdf', 'html'], file: UploadFile = File(),
 
 
 @router.post('/{format}/confirm', status_code=201)
-async def confirm(format: Literal['pdf', 'html'], data: TestDocument,
+async def confirm(format: Literal['pdf', 'html', 'json'], data: TestDocument,
                   user: User = Depends(get_current_user),
                   session: AsyncSession = Depends(db_helper.session_dependency)):
     # Client submits edited content, not a trusted parser result or arbitrary ORM IDs.

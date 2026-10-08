@@ -19,8 +19,8 @@ Python 3.14, FastAPI, Pydantic v2, SQLAlchemy Async, PostgreSQL, Alembic, bcrypt
 | GET, PUT | `/tests/{id}/editor` | Документ редактора / сохранение всего документа |
 | GET, POST | `/questions/` | Свои вопросы / добавить вопрос |
 | GET, PATCH, DELETE | `/questions/{id}` | Получить / изменить / удалить вопрос |
-| POST | `/import/pdf/preview`, `/import/html/preview` | Multipart file, только разбор |
-| POST | `/import/pdf/confirm`, `/import/html/confirm` | Сохранить исправленный документ |
+| POST | `/import/pdf/preview`, `/import/html/preview`, `/import/json/preview` | Multipart file, только разбор |
+| POST | `/import/pdf/confirm`, `/import/html/confirm`, `/import/json/confirm` | Сохранить исправленный документ |
 | POST, DELETE | `/questions/{id}/favorite` | Добавить / убрать вопрос из избранного |
 | GET | `/users/me/favorites` | Избранные вопросы |
 | POST | `/favorites/attempts` | Попытка по выбранным избранным вопросам |
@@ -89,7 +89,9 @@ Python 3.14, FastAPI, Pydantic v2, SQLAlchemy Async, PostgreSQL, Alembic, bcrypt
 
 ## Импорт и превью
 
-`file` — multipart файл `.pdf`, `.html` или `.htm`, до 8 MiB. Поддерживается UTF-8 HTML; PDF должен иметь текстовый слой. MIME/расширение и содержимое проверяются, ошибки возвращаются как `413`, `415` или `422`.
+`file` — multipart файл `.pdf`, `.html`, `.htm` или `.json`, до 8 MiB. Поддерживается UTF-8 HTML/JSON; PDF должен иметь текстовый слой. MIME/расширение и содержимое проверяются, ошибки возвращаются как `413`, `415` или `422`.
+
+JSON принимается в структуре редактора: объект `title`, необязательный `description` и массив `questions`. Поддерживаются типы `single_choice`, `multiple_choice`, `text`, `fill_blank`, `matching`. Неуказанная правильность вариантов попадает в превью как `null` и должна быть проверена до сохранения. Пример и запрос для ИИ находятся в [`docs/IMPORT_FORMAT.md`](../docs/IMPORT_FORMAT.md).
 
 PDF-парсер разделяет номера вопросов и вариантов, учитывает переходы страниц, извлекает `Ответ:` и `Пояснение:`. Точное совпадение текста или однозначное сокращение помечается правильным. Номер в `Ответ: 2` трактуется как текст ответа `2`, а не автоматически как второй вариант.
 

@@ -179,6 +179,55 @@ function parseHtml(html: string, title: string) {
   const warnings = declared && Number(declared[1]) !== questions.length ? [`В файле заявлено ${declared[1]} вопросов, найдено ${questions.length}.`] : []
   return { title: title || 'Импорт HTML', source: 'html_import', question_count: questions.length, needs_review_count: questions.filter(q => q.needs_review).length, warnings, questions }
 }
+export function parseJsonText(source: string, filenameTitle: string) {
+  const cleaned = source.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '')
+  let data: unknown
+  try { data = JSON.parse(cleaned) }
+  catch { throw new Error('Некорректный JSON. Скопируй в файл один JSON-объект без пояснений.') }
+  if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('В JSON ожидается объект с полями title и questions.')
+  const root = data as Record<string, unknown>
+  const title = typeof root.title === 'string' && root.title.trim() ? root.title.trim() : filenameTitle
+  const description = typeof root.description === 'string' ? root.description : ''
+  if (title.length > 200 || description.length > 20000) throw new Error('Проверь длину названия и описания.')
+  if (!Array.isArray(root.questions) || root.questions.length === 0 || root.questions.length > 1000) throw new Error('В questions должно быть от 1 до 1000 вопросов.')
+  const allowedTypes: QuestionType[] = ['single_choice', 'multiple_choice', 'text', 'fill_blank', 'matching']
+  const questions = root.questions.map((value, index) => {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error(`Вопрос ${index + 1}: ожидается JSON-объект.`)
+    const raw = value as Record<string, unknown>
+    if (typeof raw.text !== 'string' || !raw.text.trim() || raw.text.length > 20000) throw new Error(`Вопрос ${index + 1}: добавь непустое поле text.`)
+    const rawOptions = raw.options ?? raw.answers ?? []
+    if (!Array.isArray(rawOptions) || rawOptions.length > 100) throw new Error(`Вопрос ${index + 1}: options должен быть массивом до 100 вариантов.`)
+    const options = rawOptions.map((option, oi) => {
+      const item = typeof option === 'string' ? { text: option, is_correct: null } : option as Record<string, unknown>
+      if (!item || typeof item !== 'object' || typeof item.text !== 'string' || !item.text.trim() || item.text.length > 20000 || (item.is_correct !== undefined && item.is_correct !== null && typeof item.is_correct !== 'boolean')) throw new Error(`Вопрос ${index + 1}, вариант ${oi + 1}: нужны text до 20 000 символов и is_correct (true/false/null).`)
+      const key = item.is_correct ?? item.correct ?? null
+      if (key !== null && typeof key !== 'boolean') throw new Error(`Вопрос ${index + 1}, вариант ${oi + 1}: correct должен быть true, false или null.`)
+      return { text: item.text.trim(), is_correct: key as boolean | null }
+    })
+    const rawBlanks = raw.blanks ?? []
+    if (!Array.isArray(rawBlanks) || rawBlanks.length > 100) throw new Error(`Вопрос ${index + 1}: blanks должен быть массивом до 100 полей.`)
+    const blanks = rawBlanks.map((blank, bi) => {
+      if (!blank || typeof blank !== 'object' || Array.isArray(blank)) throw new Error(`Вопрос ${index + 1}, поле ${bi + 1}: ожидается объект.`)
+      const item = blank as Record<string, unknown>
+      if (typeof item.prompt !== 'string' || !item.prompt.trim() || item.prompt.length > 20000 || typeof item.correct_answer !== 'string' || item.correct_answer.length > 20000 || (item.choices !== undefined && (!Array.isArray(item.choices) || item.choices.length > 100 || item.choices.some(c => typeof c !== 'string' || c.length > 20000)))) throw new Error(`Вопрос ${index + 1}, поле ${bi + 1}: проверь prompt, correct_answer и choices.`)
+      return { prompt: item.prompt.trim(), correct_answer: item.correct_answer.trim(), choices: (item.choices as string[] | undefined)?.map(c => c.trim()).filter(Boolean) ?? [] }
+    })
+    const trueAnswers = options.filter(option => option.is_correct === true).length
+    const kindValue = raw.question_type ?? raw.type
+    const kind = kindValue ?? (options.length ? trueAnswers > 1 ? 'multiple_choice' : 'single_choice' : blanks.length ? 'fill_blank' : 'text')
+    if (typeof kind !== 'string' || !allowedTypes.includes(kind as QuestionType)) throw new Error(`Вопрос ${index + 1}: неизвестный question_type.`)
+    const correctAnswer = raw.correct_answer ?? ''
+    const explanation = raw.explanation ?? ''
+    if (typeof correctAnswer !== 'string' || correctAnswer.length > 20000 || typeof explanation !== 'string' || explanation.length > 20000) throw new Error(`Вопрос ${index + 1}: correct_answer и explanation должны быть строками до 20 000 символов.`)
+    const warnings = Array.isArray(raw.warnings) ? raw.warnings.filter((w): w is string => typeof w === 'string') : []
+    if ((kind === 'single_choice' || kind === 'multiple_choice') && options.some(option => option.is_correct === null)) warnings.push('Правильность некоторых вариантов не указана: проверь их в превью.')
+    if ((kind === 'single_choice' || kind === 'multiple_choice') && !options.some(option => option.is_correct === true)) warnings.push('Отметь правильный вариант в превью.')
+    if (kind === 'text' && !correctAnswer.trim()) warnings.push('Добавь правильный текстовый ответ в превью.')
+    if ((kind === 'fill_blank' || kind === 'matching') && (!blanks.length || blanks.some(blank => !blank.prompt || !blank.correct_answer))) warnings.push('Заполни подпись и правильный ответ для каждого поля.')
+    return { number: Number.isInteger(raw.number) && Number(raw.number) > 0 ? Number(raw.number) : index + 1, text: raw.text.trim(), question_type: kind, options, correct_answer: correctAnswer.trim(), blanks, explanation: explanation.trim(), source_answer: typeof raw.source_answer === 'string' ? raw.source_answer : '', warnings, needs_review: warnings.length > 0 || options.some(option => option.is_correct === null) }
+  })
+  return { title, description, source: 'json_import', question_count: questions.length, needs_review_count: questions.filter(q => q.needs_review).length, warnings: [], questions }
+}
 function parsePdfText(source: string, title: string) {
   const text = source.replace(/\r/g, '').replace(/\u00ad/g, '').replace(/^PAGE \d+\s*$/gm, '')
   if (!text.trim() || text.length > 2_000_000) throw new Error('PDF пустой, слишком большой или не содержит текст.')
@@ -234,6 +283,7 @@ async function previewFile(form: FormData) {
   if (!(file instanceof File) || !file.size) throw new Error('Выбери файл для импорта.')
   if (file.size > 8 * 1024 * 1024) throw new Error('Максимальный размер файла — 8 МБ.')
   const title = file.name.replace(/\.(html?|pdf)$/i, '')
+  if (/\.json$/i.test(file.name)) return parseJsonText(await file.text(), file.name.replace(/\.json$/i, ''))
   if (/\.html?$/i.test(file.name)) return parseHtml(await file.text(), title)
   if (!/\.pdf$/i.test(file.name) || !(await file.slice(0, 5).text()).startsWith('%PDF-')) throw new Error('Поддерживаются HTML и текстовые PDF.')
   const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs')
@@ -301,7 +351,7 @@ export async function localApiFetch(path: string, init: RequestInit = {}): Promi
     }
     if (route.startsWith('/import/') && route.endsWith('/confirm') && method === 'POST') {
       const preview = parseBody(init); const rawQuestions = Array.isArray(preview.questions) ? preview.questions as Record<string, unknown>[] : []
-      const doc = { title: String(preview.title ?? ''), description: '', questions: rawQuestions.map(q => ({ text: String(q.text ?? ''), question_type: q.question_type as QuestionType, options: (q.options as { text: string; is_correct: boolean | null }[] ?? []).map(o => ({ text: o.text, is_correct: o.is_correct === true })), correct_answer: String(q.correct_answer ?? ''), blanks: q.blanks ?? [], explanation: String(q.explanation ?? '') })) } as TestDocument
+      const doc = { title: String(preview.title ?? ''), description: String(preview.description ?? ''), questions: rawQuestions.map(q => ({ text: String(q.text ?? ''), question_type: q.question_type as QuestionType, options: (q.options as { text: string; is_correct: boolean | null }[] ?? []).map(o => ({ text: o.text, is_correct: o.is_correct === true })), correct_answer: String(q.correct_answer ?? ''), blanks: q.blanks ?? [], explanation: String(q.explanation ?? '') })) } as TestDocument
       if (rawQuestions.some(q => Array.isArray(q.options) && (q.options as { is_correct: boolean | null }[]).some(o => o.is_correct === null))) return failure('Отметь или сними отметку правильности у каждого варианта.', 422)
       const problems = validate(doc); if (problems.length) return failure(problems.join(' '), 422)
       const testId = next(db, 'test'); const now = new Date().toISOString(); const questions = doc.questions.map(q => ({ ...q, id: next(db, 'question'), options: q.options.map(o => ({ ...o, id: next(db, 'option') })) }))

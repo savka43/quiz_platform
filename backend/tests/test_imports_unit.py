@@ -1,9 +1,10 @@
 from pathlib import Path
+import json
 
 import pytest
 from pydantic import ValidationError
 
-from api_v1.imports.service import parse_pdf_text, parse_html, match_answers
+from api_v1.imports.service import parse_pdf_text, parse_html, parse_json_text, match_answers
 from api_v1.editor.schemas import QuestionInput
 from api_v1.practice.schemas import AnswerInput
 from api_v1.practice.service import evaluate, public_snapshot
@@ -109,6 +110,47 @@ def test_syncshare_infers_last_single_choice_after_all_other_options_are_wrong()
     q = parse_html(markup).questions[0]
     assert [o.is_correct for o in q.options] == [False, False, True]
     assert not q.needs_review
+
+
+def test_json_import_preview_supports_choice_text_and_blank_questions():
+    preview = parse_json_text(json.dumps({
+        'title': 'Основы проекта', 'description': 'Пример для импорта',
+        'questions': [
+            {'text': 'Код Not Found?', 'question_type': 'single_choice', 'options': [
+                {'text': '200', 'is_correct': False}, {'text': '404', 'is_correct': True}],
+             'explanation': 'Ресурс не найден.'},
+            {'text': 'Назови методологию', 'question_type': 'text', 'correct_answer': 'Agile'},
+            {'text': 'Заполни пропуск', 'question_type': 'fill_blank', 'blanks': [
+                {'prompt': 'HTTP Not Found', 'correct_answer': '404', 'choices': []}]},
+        ],
+    }))
+    result = preview.response()
+    assert result['source'] == 'json_import'
+    assert result['description'] == 'Пример для импорта'
+    assert result['question_count'] == 3
+    assert result['needs_review_count'] == 0
+    assert result['questions'][0]['correct_option_count'] == 1
+    assert result['questions'][2]['blanks'][0]['correct_answer'] == '404'
+
+
+def test_json_import_accepts_fenced_ai_output_and_marks_unknown_answers():
+    content = '''```json
+    {"title":"Q","questions":[{"text":"Выбери","options":["A","B"]}]}
+    ```'''
+    result = parse_json_text(content).response()
+    assert result['title'] == 'Q'
+    assert result['needs_review_count'] == 1
+    assert [option['is_correct'] for option in result['questions'][0]['options']] == [None, None]
+
+
+@pytest.mark.parametrize('content', [
+    '', 'not JSON', '[]', '{"title":"Q","questions":[]}',
+    '{"title":"Q","questions":[{"text":"Q","question_type":[],"options":[]}]}',
+    '{"title":"Q","questions":[{"text":"Q","options":[{"text":"A","is_correct":"yes"}]}]}',
+])
+def test_json_import_rejects_invalid_documents(content):
+    with pytest.raises(ValueError):
+        parse_json_text(content)
 
 
 def test_html_text_key():

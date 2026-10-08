@@ -1,0 +1,59 @@
+{
+  "title": "Пример импорта: основы HTTP",
+  "description": "Демонстрационные вопросы для проверки JSON-импорта.",
+  "questions": [
+    {
+      "text": "Какой HTTP-код означает, что страница не найдена?",
+      "question_type": "single_choice",
+      "options": [
+        { "text": "200 — Запрос выполнен успешно", "is_correct": false },
+        { "text": "404 — Страница не найдена", "is_correct": true },
+        { "text": "500 — Внутренняя ошибка сервера", "is_correct": false }
+      ],
+      "correct_answer": "",
+      "blanks": [],
+      "explanation": "Код 404 означает, что сервер не нашёл ресурс."
+    },
+    {
+      "text": "Какие из этих значений являются чётными?",
+      "question_type": "multiple_choice",
+      "options": [
+        { "text": "2", "is_correct": true },
+        { "text": "3", "is_correct": false },
+        { "text": "4", "is_correct": true }
+      ],
+      "correct_answer": "",
+      "blanks": [],
+      "explanation": "Чётные значения делятся на два без остатка."
+    },
+    {
+      "text": "Как называется протокол защищённой передачи данных в браузере?",
+      "question_type": "text",
+      "options": [],
+      "correct_answer": "HTTPS",
+      "blanks": [],
+      "explanation": "HTTPS защищает соединение с помощью шифрования."
+    },
+    {
+      "text": "Заполни пропуск: код HTTP {пропуск} означает, что ресурс не найден.",
+      "question_type": "fill_blank",
+      "options": [],
+      "correct_answer": "",
+      "blanks": [
+        { "prompt": "Код HTTP", "correct_answer": "404", "choices": [] }
+      ],
+      "explanation": ""
+    },
+    {
+      "text": "Сопоставь код ответа и его значение.",
+      "question_type": "matching",
+      "options": [],
+      "correct_answer": "",
+      "blanks": [
+        { "prompt": "200", "correct_answer": "Успешный запрос", "choices": ["Успешный запрос", "Страница не найдена"] },
+        { "prompt": "404", "correct_answer": "Страница не найдена", "choices": ["Успешный запрос", "Страница не найдена"] }
+      ],
+      "explanation": ""
+    }
+  ]
+}

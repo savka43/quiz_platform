@@ -26,7 +26,8 @@ class PreviewQuestion(StrictModel):
 
 class Preview(StrictModel):
     title: str
-    source: Literal['pdf_import', 'html_import']
+    source: Literal['pdf_import', 'html_import', 'json_import']
+    description: str = ''
     questions: list[PreviewQuestion]
     warnings: list[str] = Field(default_factory=list)
 

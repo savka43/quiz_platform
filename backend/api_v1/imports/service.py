@@ -1,4 +1,5 @@
 import re
+import json
 import shutil
 import subprocess
 import sys
@@ -242,6 +243,110 @@ def parse_html(html: str, title: str = 'Импорт HTML') -> Preview:
     if declared and int(declared[1]) != len(questions):
         warnings.append(f'В файле заявлено {declared[1]} вопросов, найдено {len(questions)}')
     return Preview(title=title, source='html_import', questions=questions, warnings=warnings)
+
+
+def parse_json_text(source: str, filename_title: str = 'Импорт JSON') -> Preview:
+    if not source.strip() or len(source) > MAX_TEXT:
+        raise ValueError('JSON пустой или слишком большой')
+    # Accept a fenced JSON block copied from an AI response, while still requiring
+    # the file contents to be a single JSON document.
+    source = re.sub(r'^\s*```(?:json)?\s*|\s*```\s*$', '', source.strip(), flags=re.I)
+    try:
+        data = json.loads(source)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f'Некорректный JSON: строка {exc.lineno}, столбец {exc.colno}') from None
+    if not isinstance(data, dict):
+        raise ValueError('В корне JSON должен находиться объект с title и questions')
+    title = data.get('title')
+    title = title.strip() if isinstance(title, str) and title.strip() else filename_title
+    if len(title) > 200:
+        raise ValueError('Название теста должно быть не длиннее 200 символов')
+    description = data.get('description', '')
+    if not isinstance(description, str) or len(description) > 20000:
+        raise ValueError('description должен быть строкой длиной до 20 000 символов')
+    raw_questions = data.get('questions')
+    if not isinstance(raw_questions, list) or not raw_questions or len(raw_questions) > 1000:
+        raise ValueError('questions должен содержать от 1 до 1000 вопросов')
+
+    allowed_types = {'single_choice', 'multiple_choice', 'text', 'fill_blank', 'matching'}
+    questions = []
+    for index, raw in enumerate(raw_questions, start=1):
+        if not isinstance(raw, dict):
+            raise ValueError(f'Вопрос {index}: ожидался объект')
+        text = raw.get('text')
+        if not isinstance(text, str) or not text.strip() or len(text) > 20000:
+            raise ValueError(f'Вопрос {index}: text должен быть непустой строкой до 20 000 символов')
+        raw_options = raw.get('options', raw.get('answers', []))
+        if not isinstance(raw_options, list) or len(raw_options) > 100:
+            raise ValueError(f'Вопрос {index}: options должен быть массивом до 100 вариантов')
+        options = []
+        for option_index, option in enumerate(raw_options, start=1):
+            if isinstance(option, str):
+                option_text, is_correct = option.strip(), None
+            elif isinstance(option, dict):
+                option_text = option.get('text')
+                is_correct = option.get('is_correct', option.get('correct'))
+                if is_correct is not None and not isinstance(is_correct, bool):
+                    raise ValueError(f'Вопрос {index}, вариант {option_index}: is_correct должен быть true, false или null')
+            else:
+                raise ValueError(f'Вопрос {index}, вариант {option_index}: ожидалась строка или объект')
+            if not isinstance(option_text, str) or not option_text.strip() or len(option_text) > 20000:
+                raise ValueError(f'Вопрос {index}, вариант {option_index}: text должен быть непустой строкой')
+            options.append(PreviewOption(text=option_text.strip(), is_correct=is_correct))
+
+        raw_blanks = raw.get('blanks', [])
+        if not isinstance(raw_blanks, list) or len(raw_blanks) > 100:
+            raise ValueError(f'Вопрос {index}: blanks должен быть массивом до 100 полей')
+        blanks = []
+        for blank_index, blank in enumerate(raw_blanks, start=1):
+            if not isinstance(blank, dict):
+                raise ValueError(f'Вопрос {index}, поле {blank_index}: ожидался объект')
+            prompt = blank.get('prompt')
+            answer = blank.get('correct_answer', '')
+            choices = blank.get('choices', [])
+            if (not isinstance(prompt, str) or not prompt.strip() or len(prompt) > 20000
+                    or not isinstance(answer, str) or len(answer) > 20000
+                    or not isinstance(choices, list) or len(choices) > 100
+                    or any(not isinstance(choice, str) or len(choice) > 20000 for choice in choices)):
+                raise ValueError(f'Вопрос {index}, поле {blank_index}: проверь prompt, correct_answer и choices')
+            blanks.append({'prompt': prompt.strip(), 'correct_answer': answer.strip(), 'choices': [c.strip() for c in choices if c.strip()]})
+
+        kind = raw.get('question_type', raw.get('type'))
+        if kind is None:
+            kind = 'multiple_choice' if sum(option.is_correct is True for option in options) > 1 else 'single_choice' if options else 'fill_blank' if blanks else 'text'
+        if not isinstance(kind, str) or kind not in allowed_types:
+            raise ValueError(f'Вопрос {index}: неизвестный question_type {kind!r}')
+        correct_answer = raw.get('correct_answer', '')
+        explanation = raw.get('explanation', '')
+        if not isinstance(correct_answer, str) or len(correct_answer) > 20000 or not isinstance(explanation, str) or len(explanation) > 20000:
+            raise ValueError(f'Вопрос {index}: correct_answer и explanation должны быть строками')
+        number = raw.get('number', index)
+        if not isinstance(number, int) or isinstance(number, bool) or number < 1:
+            raise ValueError(f'Вопрос {index}: number должен быть положительным целым числом')
+        warnings = raw.get('warnings', [])
+        if not isinstance(warnings, list) or any(not isinstance(warning, str) for warning in warnings):
+            warnings = []
+        if kind in ('single_choice', 'multiple_choice'):
+            if len(options) < 2:
+                warnings.append('Добавьте не менее двух вариантов ответа.')
+            if any(option.is_correct is None for option in options):
+                warnings.append('Правильность некоторых вариантов не указана: проверьте их в превью.')
+            if kind == 'single_choice' and sum(option.is_correct is True for option in options) > 1:
+                warnings.append('Для одиночного выбора отмечено несколько правильных ответов.')
+            if not any(option.is_correct is True for option in options):
+                warnings.append('Отметьте правильный вариант в превью.')
+        elif kind == 'text' and not correct_answer.strip():
+            warnings.append('Добавьте правильный текстовый ответ в превью.')
+        elif kind in ('fill_blank', 'matching') and (not blanks or any(not blank['prompt'] or not blank['correct_answer'] for blank in blanks)):
+            warnings.append('Заполните подпись и правильный ответ для каждого поля.')
+
+        questions.append(PreviewQuestion(
+            number=number, text=text.strip(), question_type=kind,
+            options=options, correct_answer=correct_answer.strip(), blanks=blanks,
+            explanation=explanation.strip(), source_answer=str(raw.get('source_answer', '')),
+            warnings=warnings,
+        ))
+    return Preview(title=title, description=description.strip(), source='json_import', questions=questions)
 
 
 def extract_pdf(data: bytes) -> str:
