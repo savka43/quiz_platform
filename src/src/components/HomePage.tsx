@@ -1,6 +1,5 @@
 import { apiFetch, LOCAL_MODE, session } from '../api/client'
 import { useAuth } from '../auth/useAuth'
-import { exportLocalBackup, restoreLocalBackup } from '../data/localStore'
 import StartAttempt from '../practice/StartAttempt'
 import OpenAttempts from '../practice/OpenAttempts'
 import { Link, useNavigate } from 'react-router'
@@ -20,7 +19,6 @@ function HomePage() {
   const [sort, setSort] = useState('newest')
   const [modal, setModal] = useState<'import' | null>(null)
   const [error, setError] = useState('')
-  const [backupStatus, setBackupStatus] = useState('')
   const [loading, setLoading] = useState(false)
   const [busy, setBusy] = useState(false)
   const [revision, setRevision] = useState(0)
@@ -29,20 +27,6 @@ function HomePage() {
   useEffect(() => { if (modal) dialogRef.current?.showModal() }, [modal])
   const [format, setFormat] = useState('html')
 
-  function downloadBackup() {
-    try {
-      const url = URL.createObjectURL(new Blob([exportLocalBackup()], { type: 'application/json' }))
-      const link = document.createElement('a'); link.href = url; link.download = `quiz-backup-${new Date().toISOString().slice(0, 10)}.json`; link.click(); URL.revokeObjectURL(url); setBackupStatus('Резервная копия скачана.')
-    } catch { setError('Не удалось прочитать локальные данные браузера.') }
-  }
-  async function loadBackup(event: FormEvent<HTMLInputElement>) {
-    const file = event.currentTarget.files?.[0]
-    event.currentTarget.value = ''
-    if (!file) return
-    if (!window.confirm('Заменить текущие тесты, попытки и избранное данными из этой копии?')) return
-    try { restoreLocalBackup(await file.text()); setRevision(value => value + 1); setError(''); setBackupStatus('Резервная копия восстановлена.') }
-    catch (e) { setError(e instanceof Error ? e.message : 'Не удалось восстановить резервную копию.') }
-  }
   async function deleteTest(test: Quiz) {
     if (!window.confirm(`Удалить тест «${test.title}»? Старые результаты прохождения сохранятся.`)) return
     setError('')
@@ -128,7 +112,6 @@ function HomePage() {
   return <div className="home">
     <header className="home-header"><Link className="home-logo" to="/">quiz<span>.</span></Link><nav className="home-nav" aria-label="Разделы"><Link to="/history">История</Link><Link to="/favorites">Избранное</Link></nav>{LOCAL_MODE ? <Link className="account-button" to="/login">Войти ↗</Link> : <button className="account-button" disabled={loggingOut} title={user?.email} onClick={async () => { setLoggingOut(true); setError(''); try { await session.logout() } catch { setError('Не удалось выйти. Проверьте соединение и повторите попытку.') } finally { setLoggingOut(false) } }}>{loggingOut ? 'Выходим…' : 'Выйти'}<span aria-hidden="true">↗</span></button>}</header>
     <main className="home-content">
-      {LOCAL_MODE && <aside className="local-notice"><span><strong>Локальная версия.</strong> Тесты и результаты хранятся только в этом браузере.{backupStatus && <small className="backup-status" role="status">{backupStatus}</small>}</span><span className="local-backup-actions"><button type="button" onClick={downloadBackup}>Скачать копию</button><label className="backup-restore">Восстановить копию<input type="file" accept="application/json,.json" onChange={event => void loadBackup(event)} /></label><Link to="/register">Аккаунт →</Link></span></aside>}
       <OpenAttempts />
       <div className="home-heading"><div><p className="home-kicker">БИБЛИОТЕКА</p><h1>Мои тесты<span>{tests.length.toString().padStart(2, '0')}</span></h1></div><div className="home-actions"><button className="secondary-action" onClick={() => open('import')}><span aria-hidden="true">↑</span> Импортировать</button><button className="primary-action" onClick={() => open('create')}><span aria-hidden="true">+</span> Создать тест</button></div></div>
       <div className="home-toolbar"><div className="home-search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" /><path d="m16 16 4 4" /></svg><input aria-label="Поиск тестов" placeholder="Найти тест" value={query} onChange={e => setQuery(e.target.value)} /></div><select aria-label="Сортировка" value={sort} onChange={e => setSort(e.target.value)}><option value="newest">Сначала новые</option><option value="oldest">Сначала старые</option><option value="title">По названию</option></select></div>

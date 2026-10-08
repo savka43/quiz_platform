@@ -212,15 +212,6 @@ a:focus-visible { outline: 2px solid #7d9071; outline-offset: 4px; }
 .quiz-delete:hover { text-decoration: underline; }
 .account-button { text-decoration: none; }
 .home-nav + .account-button { margin-left: 0; }
-.local-notice { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin: 0 0 38px; padding: 13px 16px; border: 1px solid #e1e5da; border-radius: 8px; background: #fff; color: #747d6c; font-size: 11px; line-height: 1.65; }
-.local-notice strong { color: #3f5038; font-weight: 600; }
-.backup-status { display: block; margin-top: 3px; color: #4b643d; }
-.local-notice a { color: #4b643d; white-space: nowrap; text-decoration: none; }
-.local-notice a:hover { text-decoration: underline; }
-.local-backup-actions { display: flex; align-items: center; gap: 14px; white-space: nowrap; }
-.local-backup-actions button,.backup-restore { display: inline-flex; align-items: center; margin: 0; padding: 0; border: 0; background: transparent; color: #4b643d; cursor: pointer; font: inherit; text-decoration: none; }
-.local-backup-actions button:hover,.backup-restore:hover { text-decoration: underline; }
-.backup-restore input { display: none; }
 .account-redirect h1 { margin: 0 0 14px; font-size: 25px; font-weight: 500; }
 .account-redirect>p:not(.home-kicker) { color: #737d6b; font-size: 13px; line-height: 1.8; }
 .account-home-link { display: flex; align-items: center; justify-content: center; margin-top: 24px; text-decoration: none; }
@@ -269,8 +260,6 @@ a:focus-visible { outline: 2px solid #7d9071; outline-offset: 4px; }
 @media(max-width:600px) {
   .home-header { flex-wrap: wrap; gap: 12px; }
   .home-nav { margin-left: auto; gap: 14px; }
-  .local-notice { align-items: flex-start; flex-direction: column; margin-bottom: 28px; }
-  .local-backup-actions { flex-wrap: wrap; white-space: normal; }
   .collection-heading { align-items: flex-start; flex-direction: column; }
   .history-row { align-items: flex-start; }
   .history-result { align-items: flex-end; flex-direction: column; gap: 7px; }
